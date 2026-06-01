@@ -4,9 +4,9 @@ FROM mcr.microsoft.com/playwright/python:v1.43.0-jammy
 # Définit le dossier de travail
 WORKDIR /app
 
-# Copie le fichier de dépendances et l'installe
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Installe uniquement les dépendances légères nécessaires au feeder
+RUN pip install --no-cache-dir requests playwright python-dotenv
+
 
 # Copie l'ensemble des fichiers du backend
 COPY . .
