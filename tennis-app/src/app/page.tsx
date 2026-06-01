@@ -212,10 +212,14 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'live' ? 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'live' 
+              ? 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.3)]' 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'live' ? 'bg-[#0B101A]' : 'bg-[#00E676] animate-pulse'}`}></span>
-          Direct ({liveCount})
+          <span>Direct ({liveCount})</span>
         </button>
         <button
           onClick={() => {
@@ -223,9 +227,14 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'upcoming' ? 'bg-sky-500 text-slate-950 shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'upcoming' 
+              ? 'bg-sky-500 text-slate-950 shadow-[0_0_10px_rgba(14,165,233,0.3)]' 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
         >
-          À Venir ({upcomingCount})
+          <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'upcoming' ? 'bg-slate-950' : 'bg-sky-400'}`}></span>
+          <span>À Venir ({upcomingCount})</span>
         </button>
         <button
           onClick={() => {
@@ -233,9 +242,14 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'completed' ? 'bg-rose-500 text-[#0B101A] shadow-[0_0_10px_rgba(244,63,94,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'completed' 
+              ? 'bg-rose-500 text-[#0B101A] shadow-[0_0_10px_rgba(244,63,94,0.3)]' 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
         >
-          Terminés ({completedCount})
+          <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'completed' ? 'bg-[#0B101A]' : 'bg-rose-500'}`}></span>
+          <span>Terminés ({completedCount})</span>
         </button>
       </div>
 
