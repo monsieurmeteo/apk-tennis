@@ -352,6 +352,23 @@ def start_health_check_server():
                 self.send_header("Content-type", "text/plain")
                 self.end_headers()
                 self.wfile.write(b"OK")
+            elif self.path == "/test":
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                try:
+                    from playwright.sync_api import sync_playwright
+                    with sync_playwright() as p:
+                        browser = p.chromium.launch(headless=True)
+                        page = browser.new_page(
+                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        )
+                        page.goto("https://api.sofascore.com/api/v1/sport/tennis/events/live", wait_until="domcontentloaded")
+                        content = page.locator("body").inner_text()
+                        browser.close()
+                        self.wfile.write(content.encode("utf-8"))
+                except Exception as e:
+                    self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             else:
                 self.send_response(404)
                 self.end_headers()
