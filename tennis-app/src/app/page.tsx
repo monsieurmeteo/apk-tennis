@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Target, Activity, Zap, Play, Search, Filter, Star } from 'lucide-react';
+import { Target, Activity, Zap, Play, Search, Filter, Star, Trophy } from 'lucide-react';
 import { MatchCard } from '../components/dashboard/MatchCard';
 
 interface MatchData {
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [matches, setMatches] = useState<MatchData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'live' | 'upcoming'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'upcoming' | 'completed'>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTournament, setSelectedTournament] = useState('');
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -78,16 +78,30 @@ export default function Dashboard() {
     new Set(matches.map(m => m.tournament))
   ).sort();
 
-  // Filter live and upcoming matches based on search query and tournament selection
+  // Détection si un match est terminé
+  const isMatchCompleted = (m: MatchData) => {
+    return !m.is_live && (
+      m.score_str === 'Terminé' ||
+      (m.score_str.includes('-') && !m.score_str.includes(':'))
+    );
+  };
+
+  // Filter live, upcoming, and completed matches
   const liveMatches = matches.filter(m => m.is_live);
-  const upcomingMatches = matches.filter(m => !m.is_live);
+  const upcomingMatches = matches.filter(m => !m.is_live && !isMatchCompleted(m));
+  const completedMatches = matches.filter(m => !m.is_live && isMatchCompleted(m));
 
   const liveCount = liveMatches.length;
   const upcomingCount = upcomingMatches.length;
+  const completedCount = completedMatches.length;
 
   const filteredMatches = matches.filter(m => {
-    // 1. Filter by active tab (live vs upcoming)
-    const tabMatch = activeTab === 'live' ? m.is_live : !m.is_live;
+    // 1. Filter by active tab (live vs upcoming vs completed)
+    const tabMatch = activeTab === 'live' 
+      ? m.is_live 
+      : activeTab === 'upcoming'
+        ? (!m.is_live && !isMatchCompleted(m))
+        : (!m.is_live && isMatchCompleted(m));
     if (!tabMatch) return false;
 
     // 2. Filter by Show only favorites toggle
@@ -139,7 +153,7 @@ export default function Dashboard() {
       </div>
 
       {/* Global Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div 
           onClick={() => {
             setActiveTab('live');
@@ -172,10 +186,26 @@ export default function Dashboard() {
             <p className="text-xl font-bold text-white">{upcomingCount}</p>
           </div>
         </div>
+        <div 
+          onClick={() => {
+            setActiveTab('completed');
+            setSearchQuery('');
+            setSelectedTournament('');
+          }} 
+          className={`bg-[#151A26] border p-4 rounded-2xl flex items-center gap-4 cursor-pointer transition-all ${activeTab === 'completed' ? 'border-rose-500 bg-rose-500/5' : 'border-[#2A3245]'}`}
+        >
+          <div className="p-3 bg-rose-500/10 rounded-xl">
+            <Trophy className="text-rose-400" size={20} />
+          </div>
+          <div>
+            <p className="text-slate-400 text-xs font-medium">Terminés</p>
+            <p className="text-xl font-bold text-white">{completedCount}</p>
+          </div>
+        </div>
       </div>
 
       {/* Segmented Tab Control */}
-      <div className="flex bg-[#151A26] border border-[#2A3245] p-1 rounded-xl">
+      <div className="flex bg-[#151A26] border border-[#2A3245] p-1 rounded-xl gap-1">
         <button
           onClick={() => {
             setActiveTab('live');
@@ -185,7 +215,7 @@ export default function Dashboard() {
           className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'live' ? 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'live' ? 'bg-[#0B101A]' : 'bg-[#00E676] animate-pulse'}`}></span>
-          Matchs en Direct ({liveCount})
+          Direct ({liveCount})
         </button>
         <button
           onClick={() => {
@@ -195,7 +225,17 @@ export default function Dashboard() {
           }}
           className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'upcoming' ? 'bg-sky-500 text-slate-950 shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
         >
-          Matchs à Venir ({upcomingCount})
+          À Venir ({upcomingCount})
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('completed');
+            setSearchQuery('');
+            setSelectedTournament('');
+          }}
+          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'completed' ? 'bg-rose-500 text-[#0B101A] shadow-[0_0_10px_rgba(244,63,94,0.3)]' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          Terminés ({completedCount})
         </button>
       </div>
 
@@ -273,11 +313,17 @@ export default function Dashboard() {
                 <p className="text-sm font-semibold text-white">Aucun match en direct correspondant</p>
                 <p className="text-xs text-slate-400 max-w-xs">Modifiez votre recherche ou sélectionnez "Tous les tournois" pour voir s'il y a d'autres matchs en cours.</p>
               </>
-            ) : (
+            ) : activeTab === 'upcoming' ? (
               <>
                 <Zap className="text-sky-400" size={24} />
                 <p className="text-sm font-semibold text-white">Aucun match prévu correspondant</p>
                 <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "À Venir".</p>
+              </>
+            ) : (
+              <>
+                <Trophy className="text-rose-400" size={24} />
+                <p className="text-sm font-semibold text-white">Aucun match terminé correspondant</p>
+                <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "Terminés".</p>
               </>
             )}
           </div>
