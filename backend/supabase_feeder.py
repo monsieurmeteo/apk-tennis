@@ -66,10 +66,10 @@ def upsert_to_supabase(matches: list, label: str = "Matchs"):
     print(f"✅ [Supabase] Fin d'envoi {label} : {success_count}/{total} synchronisés !")
 
 def prune_old_matches():
-    """Supprime de la base de données les matchs qui n'ont pas été mis à jour depuis plus de 24 heures."""
+    """Supprime de la base de données les matchs qui n'ont pas été mis à jour depuis plus de 4 heures."""
     try:
         # Formater au format UTC standard avec 'Z' pour éviter le symbole '+' interprété comme espace dans l'URL
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
         res = requests.delete(
             f"{SUPABASE_URL}/rest/v1/tennis_matches?updated_at=lt.{cutoff}",
             headers=SUPABASE_HEADERS,
