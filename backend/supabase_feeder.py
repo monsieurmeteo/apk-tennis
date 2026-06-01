@@ -82,203 +82,170 @@ def prune_old_matches():
     except Exception as e:
         print(f"⚠️ [Supabase] Exception lors du nettoyage : {e}")
 
-def setup_optimized_trigger():
-    """Se connecte en direct à PostgreSQL, crée l'extension trigramme, crée les index GIN et applique le trigger optimisé."""
-    # Reconstruire le direct URL pour éviter le pooler et ses problèmes de tenant sur IPv6
-    supabase_url = os.getenv("SUPABASE_URL", "https://ubdevaemtwbzxksjlhjg.supabase.co")
-    tenant = supabase_url.replace("https://", "").split(".")[0]
-    
-    db_url_env = os.getenv("DATABASE_URL")
-    password = ""
-    if db_url_env:
-        try:
-            # Extraire le mot de passe entre 'postgres.tenant:' et '@'
-            parts = db_url_env.split("@")[0].split(":")
-            if len(parts) >= 3:
-                password = parts[2]
-        except:
-            pass
-            
-    if not password:
-        password = os.getenv("SUPABASE_SERVICE_KEY")
-        
-    db_url = f"postgresql://postgres:{password}@db.{tenant}.supabase.co:5432/postgres"
-        
-    print("🚀 [Supabase] Connexion en DIRECT pour optimiser les performances (port 5432)...")
+# Cache global des probabilités déjà calculées pour éviter de surcharger l'API REST
+existing_match_probs = {}
+
+def load_existing_match_probs():
+    """Charge les probabilités des matchs déjà présents en base pour éviter de refaire les calculs."""
+    global existing_match_probs
     try:
-        import psycopg2
-        conn = psycopg2.connect(db_url, connect_timeout=15)
-        cur = conn.cursor()
-        
-        # 1. Activer l'extension trigramme pour les recherches ultra-rapides
-        print("  - Activation de l'extension pg_trgm...")
-        cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
-        
-        # 2. Créer des index GIN pour accélérer les wildcards LIKE '%lastname%' de 1000x
-        print("  - Création des index GIN sur tennis_history (peut prendre quelques secondes)...")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_winner_trgm ON tennis_history USING gin (lower(winner_name) gin_trgm_ops);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_loser_trgm ON tennis_history USING gin (lower(loser_name) gin_trgm_ops);")
-        
-        # 3. Créer la fonction de calcul H2H/Surface/Form à jour
-        print("  - Création de la fonction calculate_match_stats()...")
-        cur.execute("""
-CREATE OR REPLACE FUNCTION calculate_match_stats()
-RETURNS TRIGGER AS $$
-DECLARE
-  last_a TEXT;
-  last_b TEXT;
-  surf TEXT;
-  wins_a INT := 0;
-  wins_b INT := 0;
-  total_h2h INT := 0;
-  form_wins_a INT := 0;
-  form_total_a INT := 0;
-  form_wins_b INT := 0;
-  form_total_b INT := 0;
-  surf_wins_a INT := 0;
-  surf_losses_a INT := 0;
-  surf_total_a INT := 0;
-  surf_wins_b INT := 0;
-  surf_losses_b INT := 0;
-  surf_total_b INT := 0;
-  
-  weight_h2h FLOAT := 0;
-  val_h2h FLOAT := 0.5;
-  weight_form FLOAT := 0;
-  val_form FLOAT := 0.5;
-  weight_surf FLOAT := 0;
-  val_surf FLOAT := 0.5;
-  
-  total_weight FLOAT := 0;
-  raw_prob_a FLOAT := 0.5;
-  balanced_prob_a FLOAT := 0.5;
-  final_prob_a INT := 50;
-  final_prob_b INT := 50;
-BEGIN
-  IF NEW.player_a_name IS NULL OR NEW.player_b_name IS NULL THEN
-    RETURN NEW;
-  END IF;
-  
-  last_a := lower(split_part(NEW.player_a_name, ' ', array_length(string_to_array(NEW.player_a_name, ' '), 1)));
-  last_b := lower(split_part(NEW.player_b_name, ' ', array_length(string_to_array(NEW.player_b_name, ' '), 1)));
-
-  IF lower(NEW.tournament) LIKE '%french open%' OR lower(NEW.tournament) LIKE '%roland garros%' OR lower(NEW.tournament) LIKE '%clay%' OR lower(NEW.tournament) LIKE '%terre%' OR lower(NEW.tournament) LIKE '%perugia%' OR lower(NEW.tournament) LIKE '%foggia%' OR lower(NEW.tournament) LIKE '%rome%' OR lower(NEW.tournament) LIKE '%madrid%' THEN
-    surf := 'Clay';
-  ELSIF lower(NEW.tournament) LIKE '%wimbledon%' OR lower(NEW.tournament) LIKE '%grass%' OR lower(NEW.tournament) LIKE '%gazon%' OR lower(NEW.tournament) LIKE '%halle%' OR lower(NEW.tournament) LIKE '%queen%' THEN
-    surf := 'Grass';
-  ELSE
-    surf := 'Hard';
-  END IF;
-
-  SELECT COALESCE(SUM(CASE WHEN lower(winner_name) LIKE '%' || last_a || '%' THEN 1 ELSE 0 END), 0),
-         COALESCE(SUM(CASE WHEN lower(winner_name) LIKE '%' || last_b || '%' THEN 1 ELSE 0 END), 0)
-  INTO wins_a, wins_b
-  FROM tennis_history
-  WHERE (lower(winner_name) LIKE '%' || last_a || '%' AND lower(loser_name) LIKE '%' || last_b || '%')
-     OR (lower(winner_name) LIKE '%' || last_b || '%' AND lower(loser_name) LIKE '%' || last_a || '%');
-  
-  total_h2h := wins_a + wins_b;
-  IF total_h2h > 0 THEN
-    weight_h2h := 0.30;
-    val_h2h := wins_a::FLOAT / total_h2h;
-  END IF;
-
-  SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-  INTO form_total_a, form_wins_a
-  FROM (
-    SELECT TRUE as won, tourney_date FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_a || '%'
-    UNION ALL
-    SELECT FALSE as won, tourney_date FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_a || '%'
-    ORDER BY tourney_date DESC
-    LIMIT 5
-  ) t;
-
-  SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
-  INTO form_total_b, form_wins_b
-  FROM (
-    SELECT TRUE as won, tourney_date FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_b || '%'
-    UNION ALL
-    SELECT FALSE as won, tourney_date FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_b || '%'
-    ORDER BY tourney_date DESC
-    LIMIT 5
-  ) t;
-
-  IF form_total_a > 0 OR form_total_b > 0 THEN
-    weight_form := 0.35;
-    DECLARE
-      pct_a FLOAT := CASE WHEN form_total_a > 0 THEN form_wins_a::FLOAT / form_total_a ELSE 0.5 END;
-      pct_b FLOAT := CASE WHEN form_total_b > 0 THEN form_wins_b::FLOAT / form_total_b ELSE 0.5 END;
-    BEGIN
-      IF (pct_a + pct_b) > 0 THEN
-        val_form := pct_a / (pct_a + pct_b);
-      END IF;
-    END;
-  END IF;
-
-  SELECT COUNT(*) INTO surf_wins_a FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_a || '%' AND lower(surface) = surf;
-  SELECT COUNT(*) INTO surf_losses_a FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_a || '%' AND lower(surface) = surf;
-  surf_total_a := surf_wins_a + surf_losses_a;
-
-  SELECT COUNT(*) INTO surf_wins_b FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_b || '%' AND lower(surface) = surf;
-  SELECT COUNT(*) INTO surf_losses_b FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_b || '%' AND lower(surface) = surf;
-  surf_total_b := surf_wins_b + surf_losses_b;
-
-  IF surf_total_a > 0 AND surf_total_b > 0 THEN
-    weight_surf := 0.35;
-    DECLARE
-      pct_a FLOAT := surf_wins_a::FLOAT / surf_total_a;
-      pct_b FLOAT := surf_wins_b::FLOAT / surf_total_b;
-    BEGIN
-      IF (pct_a + pct_b) > 0 THEN
-        val_surf := pct_a / (pct_a + pct_b);
-      END IF;
-    END;
-  ELSIF surf_total_a > 0 THEN
-    weight_surf := 0.20;
-    val_surf := surf_wins_a::FLOAT / surf_total_a;
-  ELSIF surf_total_b > 0 THEN
-    weight_surf := 0.20;
-    val_surf := 1.0 - (surf_wins_b::FLOAT / surf_total_b);
-  END IF;
-
-  total_weight := weight_h2h + weight_form + weight_surf;
-  IF total_weight > 0 THEN
-    raw_prob_a := (weight_h2h * val_h2h + weight_form * val_form + weight_surf * val_surf) / total_weight;
-    balanced_prob_a := raw_prob_a * 0.5 + 0.5 * 0.5;
-    final_prob_a := round(balanced_prob_a * 100);
-    final_prob_b := 100 - final_prob_a;
-    
-    NEW.player_a_prob := final_prob_a;
-    NEW.player_b_prob := final_prob_b;
-    NEW.edge := abs(final_prob_a - 50);
-    NEW.target_player := CASE WHEN final_prob_a > final_prob_b THEN 'A' ELSE 'B' END;
-  END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-""")
-        
-        # 4. Créer le trigger avec clause WHEN pour optimiser les performances (ne s'exécute que si les noms changent)
-        print("  - Création du trigger trg_calculate_match_stats...")
-        cur.execute("DROP TRIGGER IF EXISTS trg_calculate_match_stats ON tennis_matches;")
-        cur.execute("""
-CREATE TRIGGER trg_calculate_match_stats
-BEFORE INSERT OR UPDATE ON tennis_matches
-FOR EACH ROW
-WHEN (
-  OLD IS NULL 
-  OR OLD.player_a_name IS DISTINCT FROM NEW.player_a_name 
-  OR OLD.player_b_name IS DISTINCT FROM NEW.player_b_name
-)
-EXECUTE FUNCTION calculate_match_stats();
-""")
-        conn.commit()
-        print("✅ [Supabase] Base de données et trigger H2H/Forme/Surface configurés avec succès et 100% optimisés !")
-        cur.close()
-        conn.close()
+        url = f"{SUPABASE_URL}/rest/v1/tennis_matches?select=id,player_a_name,player_b_name,player_a_prob,player_b_prob,edge,target_player"
+        res = requests.get(url, headers=SUPABASE_HEADERS, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            for m in data:
+                m_id = m.get('id')
+                if m_id:
+                    existing_match_probs[m_id] = {
+                        "prob_a": m.get('player_a_prob', 50),
+                        "prob_b": m.get('player_b_prob', 50),
+                        "edge": m.get('edge', 0),
+                        "target": m.get('target_player', 'A'),
+                        "player_a_name": m.get('player_a_name'),
+                        "player_b_name": m.get('player_b_name')
+                    }
+            print(f"📦 [Cache] {len(existing_match_probs)} matchs existants chargés pour calcul intelligent H2H !")
     except Exception as e:
-        print(f"⚠️ [Supabase] Erreur lors de l'optimisation de la base : {e}")
+        print(f"⚠️ [Cache] Impossible de charger les matchs existants : {e}")
+
+def calculate_real_match_stats(name_a: str, name_b: str, tournament: str) -> dict:
+    """Calcule les probabilités réelles H2H, Forme et Surface basées sur les données historiques de tennis_history via l'API REST."""
+    try:
+        last_a = name_a.strip().split()[-1].lower()
+        last_b = name_b.strip().split()[-1].lower()
+        
+        # Détection de la surface
+        tour_lower = tournament.lower()
+        if any(w in tour_lower for w in ['french open', 'roland garros', 'clay', 'terre', 'perugia', 'foggia', 'rome', 'madrid']):
+            surf = 'Clay'
+        elif any(w in tour_lower for w in ['wimbledon', 'grass', 'gazon', 'halle', 'queen']):
+            surf = 'Grass'
+        else:
+            surf = 'Hard'
+            
+        # 1. Head-to-Head (H2H)
+        h2h_url = f"{SUPABASE_URL}/rest/v1/tennis_history?or=(and(winner_name.ilike.*{last_a}*,loser_name.ilike.*{last_b}*),and(winner_name.ilike.*{last_b}*,loser_name.ilike.*{last_a}*))"
+        res_h2h = requests.get(h2h_url, headers=SUPABASE_HEADERS, timeout=5)
+        wins_a = 0
+        wins_b = 0
+        weight_h2h = 0.0
+        val_h2h = 0.5
+        
+        if res_h2h.status_code == 200:
+            h2h_data = res_h2h.json()
+            for m in h2h_data:
+                win_name = m.get('winner_name', '').lower()
+                if last_a in win_name:
+                    wins_a += 1
+                elif last_b in win_name:
+                    wins_b += 1
+            total_h2h = wins_a + wins_b
+            if total_h2h > 0:
+                weight_h2h = 0.30
+                val_h2h = wins_a / total_h2h
+                
+        # 2. Forme Récente (Form)
+        # Forme A
+        form_a_url = f"{SUPABASE_URL}/rest/v1/tennis_history?or=(winner_name.ilike.*{last_a}*,loser_name.ilike.*{last_a}*)&order=tourney_date.desc&limit=5"
+        res_form_a = requests.get(form_a_url, headers=SUPABASE_HEADERS, timeout=5)
+        form_wins_a = 0
+        form_total_a = 0
+        if res_form_a.status_code == 200:
+            form_a_data = res_form_a.json()
+            form_total_a = len(form_a_data)
+            for m in form_a_data:
+                if last_a in m.get('winner_name', '').lower():
+                    form_wins_a += 1
+                    
+        # Forme B
+        form_b_url = f"{SUPABASE_URL}/rest/v1/tennis_history?or=(winner_name.ilike.*{last_b}*,loser_name.ilike.*{last_b}*)&order=tourney_date.desc&limit=5"
+        res_form_b = requests.get(form_b_url, headers=SUPABASE_HEADERS, timeout=5)
+        form_wins_b = 0
+        form_total_b = 0
+        if res_form_b.status_code == 200:
+            form_b_data = res_form_b.json()
+            form_total_b = len(form_b_data)
+            for m in form_b_data:
+                if last_b in m.get('winner_name', '').lower():
+                    form_wins_b += 1
+                    
+        weight_form = 0.0
+        val_form = 0.5
+        if form_total_a > 0 or form_total_b > 0:
+            weight_form = 0.35
+            pct_a = form_wins_a / form_total_a if form_total_a > 0 else 0.5
+            pct_b = form_wins_b / form_total_b if form_total_b > 0 else 0.5
+            if (pct_a + pct_b) > 0:
+                val_form = pct_a / (pct_a + pct_b)
+                
+        # 3. Performance sur Surface (Surface)
+        # Surface A
+        surf_a_url = f"{SUPABASE_URL}/rest/v1/tennis_history?or=(winner_name.ilike.*{last_a}*,loser_name.ilike.*{last_a}*)&surface=eq.{surf}"
+        res_surf_a = requests.get(surf_a_url, headers=SUPABASE_HEADERS, timeout=5)
+        surf_wins_a = 0
+        surf_total_a = 0
+        if res_surf_a.status_code == 200:
+            surf_a_data = res_surf_a.json()
+            for m in surf_a_data:
+                surf_total_a += 1
+                if last_a in m.get('winner_name', '').lower():
+                    surf_wins_a += 1
+                    
+        # Surface B
+        surf_b_url = f"{SUPABASE_URL}/rest/v1/tennis_history?or=(winner_name.ilike.*{last_b}*,loser_name.ilike.*{last_b}*)&surface=eq.{surf}"
+        res_surf_b = requests.get(surf_b_url, headers=SUPABASE_HEADERS, timeout=5)
+        surf_wins_b = 0
+        surf_total_b = 0
+        if res_surf_b.status_code == 200:
+            surf_b_data = res_surf_b.json()
+            for m in surf_b_data:
+                surf_total_b += 1
+                if last_b in m.get('winner_name', '').lower():
+                    surf_wins_b += 1
+                    
+        weight_surf = 0.0
+        val_surf = 0.5
+        if surf_total_a > 0 and surf_total_b > 0:
+            weight_surf = 0.35
+            pct_a = surf_wins_a / surf_total_a
+            pct_b = surf_wins_b / surf_total_b
+            if (pct_a + pct_b) > 0:
+                val_surf = pct_a / (pct_a + pct_b)
+        elif surf_total_a > 0:
+            weight_surf = 0.20
+            val_surf = surf_wins_a / surf_total_a
+        elif surf_total_b > 0:
+            weight_surf = 0.20
+            val_surf = 1.0 - (surf_wins_b / surf_total_b)
+            
+        # 4. Combinaison finale
+        total_weight = weight_h2h + weight_form + weight_surf
+        if total_weight > 0:
+            raw_prob_a = (weight_h2h * val_h2h + weight_form * val_form + weight_surf * val_surf) / total_weight
+            balanced_prob_a = raw_prob_a * 0.5 + 0.5 * 0.5
+            final_prob_a = round(balanced_prob_a * 100)
+            final_prob_a = max(30, min(70, final_prob_a)) # Garder dans les bornes
+            final_prob_b = 100 - final_prob_a
+            return {
+                "prob_a": final_prob_a,
+                "prob_b": final_prob_b,
+                "edge": abs(final_prob_a - 50),
+                "target": "A" if final_prob_a > final_prob_b else "B",
+                "real": True
+            }
+    except Exception as e:
+        print(f"⚠️ Erreur lors du calcul des stats réelles H2H pour {name_a} vs {name_b} : {e}")
+        
+    # Fallback sur la probabilité simulée stable
+    prob_a = generate_ai_prob(name_a, name_b)
+    prob_b = 100 - prob_a
+    return {
+        "prob_a": prob_a,
+        "prob_b": prob_b,
+        "edge": abs(prob_a - 50),
+        "target": "A" if prob_a > prob_b else "B",
+        "real": False
+    }
 
 class ESPNScraper:
     def __init__(self):
@@ -367,9 +334,29 @@ class ESPNScraper:
                 else:
                     score_str = "À venir"
                     
-        prob_a = generate_ai_prob(home_name, away_name)
-        prob_b = 100 - prob_a
-        edge = abs(prob_a - 50)
+        # Calculer ou récupérer les probabilités H2H/Forme/Surface réelles
+        m_id = str(comp.get('id', f"{home_name}-{away_name}"))
+        
+        # Si le match est déjà en cache et que les joueurs n'ont pas changé, on réutilise les stats
+        if m_id in existing_match_probs and existing_match_probs[m_id].get("player_a_name") == home_name and existing_match_probs[m_id].get("player_b_name") == away_name:
+            stats = existing_match_probs[m_id]
+        else:
+            # Sinon on le calcule en temps réel via l'API REST
+            print(f"📊 [Calcul] Nouveau match détecté : {home_name} vs {away_name}. Calcul des probabilités H2H réelles...")
+            stats = calculate_real_match_stats(home_name, away_name, tournament_name)
+            # Enregistrer dans le cache local
+            existing_match_probs[m_id] = {
+                "prob_a": stats["prob_a"],
+                "prob_b": stats["prob_b"],
+                "edge": stats["edge"],
+                "target": stats["target"],
+                "player_a_name": home_name,
+                "player_b_name": away_name
+            }
+            
+        prob_a = stats["prob_a"]
+        prob_b = stats["prob_b"]
+        edge = stats["edge"]
         
         # Encodage premium des statistiques live
         tournament = tournament_name
@@ -498,8 +485,8 @@ def main():
     print("🎾 Tennis Supabase Feeder - Version ESPN Réelle Démarrée 🎾")
     start_health_check_server()
     
-    # Active et optimise le trigger H2H/Forme/Surface au démarrage du conteneur dans le cloud
-    setup_optimized_trigger()
+    # Charger les probabilités des matchs déjà présents en base de données pour alimenter le cache H2H
+    load_existing_match_probs()
     
     scraper = ESPNScraper()
     
