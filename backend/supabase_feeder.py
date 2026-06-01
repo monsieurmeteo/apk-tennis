@@ -337,10 +337,46 @@ class PersistentSofaScraper:
             self.close()
             return []
 
+def start_health_check_server():
+    """Démarre un mini-serveur HTTP pour passer les tests de santé de Render (plan Free)."""
+    import http.server
+    import socketserver
+    import threading
+    
+    port = int(os.getenv("PORT", "8000"))
+    
+    class HealthHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/":
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"OK")
+            else:
+                self.send_response(404)
+                self.end_headers()
+                
+        def log_message(self, format, *args):
+            pass
+
+    def run():
+        try:
+            socketserver.TCPServer.allow_reuse_address = True
+            with socketserver.TCPServer(("", port), HealthHandler) as httpd:
+                print(f"📡 Serveur de santé Render démarré sur le port {port}")
+                httpd.serve_forever()
+        except Exception as e:
+            print(f"⚠️ Erreur serveur de santé : {e}")
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
 def main():
     print("🎾 Tennis Supabase Feeder - Version Temps Réel Démarrée 🎾")
+    start_health_check_server()
     
     scraper = PersistentSofaScraper()
+
     
     # Timestamps pour rythmer les tâches
     last_scheduled_time = datetime.now() - timedelta(hours=1) # Force un premier grattage immédiat des programmés
