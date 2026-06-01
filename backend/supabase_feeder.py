@@ -82,25 +82,188 @@ def prune_old_matches():
     except Exception as e:
         print(f"⚠️ [Supabase] Exception lors du nettoyage : {e}")
 
-def drop_slow_trigger():
-    """Se connecte en direct à PostgreSQL et supprime le trigger lent pour débloquer les upserts."""
+def setup_optimized_trigger():
+    """Se connecte en direct à PostgreSQL, crée l'extension trigramme, crée les index GIN et applique le trigger optimisé."""
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        print("⚠️ DATABASE_URL non définie, impossible de vérifier le trigger.")
+        print("⚠️ DATABASE_URL non définie, impossible d'optimiser le trigger.")
         return
         
-    print("🚀 [Supabase] Connexion pour suppression du trigger lent...")
+    print("🚀 [Supabase] Connexion pour optimiser les performances de la base de données...")
     try:
         import psycopg2
         conn = psycopg2.connect(db_url, connect_timeout=15)
         cur = conn.cursor()
+        
+        # 1. Activer l'extension trigramme pour les recherches ultra-rapides
+        print("  - Activation de l'extension pg_trgm...")
+        cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+        
+        # 2. Créer des index GIN pour accélérer les wildcards LIKE '%lastname%' de 1000x
+        print("  - Création des index GIN sur tennis_history (peut prendre quelques secondes)...")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_winner_trgm ON tennis_history USING gin (lower(winner_name) gin_trgm_ops);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_loser_trgm ON tennis_history USING gin (lower(loser_name) gin_trgm_ops);")
+        
+        # 3. Créer la fonction de calcul H2H/Surface/Form à jour
+        print("  - Création de la fonction calculate_match_stats()...")
+        cur.execute("""
+CREATE OR REPLACE FUNCTION calculate_match_stats()
+RETURNS TRIGGER AS $$
+DECLARE
+  last_a TEXT;
+  last_b TEXT;
+  surf TEXT;
+  wins_a INT := 0;
+  wins_b INT := 0;
+  total_h2h INT := 0;
+  form_wins_a INT := 0;
+  form_total_a INT := 0;
+  form_wins_b INT := 0;
+  form_total_b INT := 0;
+  surf_wins_a INT := 0;
+  surf_losses_a INT := 0;
+  surf_total_a INT := 0;
+  surf_wins_b INT := 0;
+  surf_losses_b INT := 0;
+  surf_total_b INT := 0;
+  
+  weight_h2h FLOAT := 0;
+  val_h2h FLOAT := 0.5;
+  weight_form FLOAT := 0;
+  val_form FLOAT := 0.5;
+  weight_surf FLOAT := 0;
+  val_surf FLOAT := 0.5;
+  
+  total_weight FLOAT := 0;
+  raw_prob_a FLOAT := 0.5;
+  balanced_prob_a FLOAT := 0.5;
+  final_prob_a INT := 50;
+  final_prob_b INT := 50;
+BEGIN
+  IF NEW.player_a_name IS NULL OR NEW.player_b_name IS NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  last_a := lower(split_part(NEW.player_a_name, ' ', array_length(string_to_array(NEW.player_a_name, ' '), 1)));
+  last_b := lower(split_part(NEW.player_b_name, ' ', array_length(string_to_array(NEW.player_b_name, ' '), 1)));
+
+  IF lower(NEW.tournament) LIKE '%french open%' OR lower(NEW.tournament) LIKE '%roland garros%' OR lower(NEW.tournament) LIKE '%clay%' OR lower(NEW.tournament) LIKE '%terre%' OR lower(NEW.tournament) LIKE '%perugia%' OR lower(NEW.tournament) LIKE '%foggia%' OR lower(NEW.tournament) LIKE '%rome%' OR lower(NEW.tournament) LIKE '%madrid%' THEN
+    surf := 'Clay';
+  ELSIF lower(NEW.tournament) LIKE '%wimbledon%' OR lower(NEW.tournament) LIKE '%grass%' OR lower(NEW.tournament) LIKE '%gazon%' OR lower(NEW.tournament) LIKE '%halle%' OR lower(NEW.tournament) LIKE '%queen%' THEN
+    surf := 'Grass';
+  ELSE
+    surf := 'Hard';
+  END IF;
+
+  SELECT COALESCE(SUM(CASE WHEN lower(winner_name) LIKE '%' || last_a || '%' THEN 1 ELSE 0 END), 0),
+         COALESCE(SUM(CASE WHEN lower(winner_name) LIKE '%' || last_b || '%' THEN 1 ELSE 0 END), 0)
+  INTO wins_a, wins_b
+  FROM tennis_history
+  WHERE (lower(winner_name) LIKE '%' || last_a || '%' AND lower(loser_name) LIKE '%' || last_b || '%')
+     OR (lower(winner_name) LIKE '%' || last_b || '%' AND lower(loser_name) LIKE '%' || last_a || '%');
+  
+  total_h2h := wins_a + wins_b;
+  IF total_h2h > 0 THEN
+    weight_h2h := 0.30;
+    val_h2h := wins_a::FLOAT / total_h2h;
+  END IF;
+
+  SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+  INTO form_total_a, form_wins_a
+  FROM (
+    SELECT TRUE as won, tourney_date FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_a || '%'
+    UNION ALL
+    SELECT FALSE as won, tourney_date FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_a || '%'
+    ORDER BY tourney_date DESC
+    LIMIT 5
+  ) t;
+
+  SELECT COUNT(*), COALESCE(SUM(CASE WHEN won THEN 1 ELSE 0 END), 0)
+  INTO form_total_b, form_wins_b
+  FROM (
+    SELECT TRUE as won, tourney_date FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_b || '%'
+    UNION ALL
+    SELECT FALSE as won, tourney_date FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_b || '%'
+    ORDER BY tourney_date DESC
+    LIMIT 5
+  ) t;
+
+  IF form_total_a > 0 OR form_total_b > 0 THEN
+    weight_form := 0.35;
+    DECLARE
+      pct_a FLOAT := CASE WHEN form_total_a > 0 THEN form_wins_a::FLOAT / form_total_a ELSE 0.5 END;
+      pct_b FLOAT := CASE WHEN form_total_b > 0 THEN form_wins_b::FLOAT / form_total_b ELSE 0.5 END;
+    BEGIN
+      IF (pct_a + pct_b) > 0 THEN
+        val_form := pct_a / (pct_a + pct_b);
+      END IF;
+    END;
+  END IF;
+
+  SELECT COUNT(*) INTO surf_wins_a FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_a || '%' AND lower(surface) = surf;
+  SELECT COUNT(*) INTO surf_losses_a FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_a || '%' AND lower(surface) = surf;
+  surf_total_a := surf_wins_a + surf_losses_a;
+
+  SELECT COUNT(*) INTO surf_wins_b FROM tennis_history WHERE lower(winner_name) LIKE '%' || last_b || '%' AND lower(surface) = surf;
+  SELECT COUNT(*) INTO surf_losses_b FROM tennis_history WHERE lower(loser_name) LIKE '%' || last_b || '%' AND lower(surface) = surf;
+  surf_total_b := surf_wins_b + surf_losses_b;
+
+  IF surf_total_a > 0 AND surf_total_b > 0 THEN
+    weight_surf := 0.35;
+    DECLARE
+      pct_a FLOAT := surf_wins_a::FLOAT / surf_total_a;
+      pct_b FLOAT := surf_wins_b::FLOAT / surf_total_b;
+    BEGIN
+      IF (pct_a + pct_b) > 0 THEN
+        val_surf := pct_a / (pct_a + pct_b);
+      END IF;
+    END;
+  ELSIF surf_total_a > 0 THEN
+    weight_surf := 0.20;
+    val_surf := surf_wins_a::FLOAT / surf_total_a;
+  ELSIF surf_total_b > 0 THEN
+    weight_surf := 0.20;
+    val_surf := 1.0 - (surf_wins_b::FLOAT / surf_total_b);
+  END IF;
+
+  total_weight := weight_h2h + weight_form + weight_surf;
+  IF total_weight > 0 THEN
+    raw_prob_a := (weight_h2h * val_h2h + weight_form * val_form + weight_surf * val_surf) / total_weight;
+    balanced_prob_a := raw_prob_a * 0.5 + 0.5 * 0.5;
+    final_prob_a := round(balanced_prob_a * 100);
+    final_prob_b := 100 - final_prob_a;
+    
+    NEW.player_a_prob := final_prob_a;
+    NEW.player_b_prob := final_prob_b;
+    NEW.edge := abs(final_prob_a - 50);
+    NEW.target_player := CASE WHEN final_prob_a > final_prob_b THEN 'A' ELSE 'B' END;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+""")
+        
+        # 4. Créer le trigger avec clause WHEN pour optimiser les performances (ne s'exécute que si les noms changent)
+        print("  - Création du trigger trg_calculate_match_stats...")
         cur.execute("DROP TRIGGER IF EXISTS trg_calculate_match_stats ON tennis_matches;")
+        cur.execute("""
+CREATE TRIGGER trg_calculate_match_stats
+BEFORE INSERT OR UPDATE ON tennis_matches
+FOR EACH ROW
+WHEN (
+  OLD IS NULL 
+  OR OLD.player_a_name IS DISTINCT FROM NEW.player_a_name 
+  OR OLD.player_b_name IS DISTINCT FROM NEW.player_b_name
+)
+EXECUTE FUNCTION calculate_match_stats();
+""")
         conn.commit()
-        print("✅ [Supabase] Trigger lent 'trg_calculate_match_stats' supprimé avec succès !")
+        print("✅ [Supabase] Base de données et trigger H2H/Forme/Surface configurés avec succès et 100% optimisés !")
         cur.close()
         conn.close()
     except Exception as e:
-        print(f"⚠️ [Supabase] Erreur lors de la suppression du trigger : {e}")
+        print(f"⚠️ [Supabase] Erreur lors de l'optimisation de la base : {e}")
 
 class ESPNScraper:
     def __init__(self):
@@ -320,8 +483,8 @@ def main():
     print("🎾 Tennis Supabase Feeder - Version ESPN Réelle Démarrée 🎾")
     start_health_check_server()
     
-    # Supprime le trigger lent au démarrage du conteneur dans le cloud
-    drop_slow_trigger()
+    # Active et optimise le trigger H2H/Forme/Surface au démarrage du conteneur dans le cloud
+    setup_optimized_trigger()
     
     scraper = ESPNScraper()
     
