@@ -176,21 +176,21 @@ export default function Dashboard() {
       </div>
 
       {/* Global Stats Grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div 
           onClick={() => {
             setActiveTab('live');
             setSearchQuery('');
             setSelectedTournament('');
           }} 
-          className={`bg-[#151A26] border p-4 rounded-2xl flex items-center gap-4 cursor-pointer transition-all ${activeTab === 'live' ? 'border-[#00E676] bg-[#00E676]/5' : 'border-[#2A3245]'}`}
+          className={`bg-[#151A26] border p-2 sm:p-4 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-4 cursor-pointer transition-all ${activeTab === 'live' ? 'border-[#00E676] bg-[#00E676]/5' : 'border-[#2A3245]'}`}
         >
-          <div className="p-3 bg-[#00E676]/10 rounded-xl">
-            <Activity className="text-[#00E676]" size={20} />
+          <div className="p-1.5 sm:p-3 bg-[#00E676]/10 rounded-lg sm:rounded-xl shrink-0">
+            <Activity className="text-[#00E676]" size={16} />
           </div>
-          <div>
-            <p className="text-slate-400 text-xs font-medium">En Direct</p>
-            <p className="text-xl font-bold text-white">{liveCount}</p>
+          <div className="min-w-0">
+            <p className="text-slate-400 text-[10px] sm:text-xs font-medium truncate">En Direct</p>
+            <p className="text-base sm:text-xl font-bold text-white leading-none mt-0.5 sm:mt-1">{liveCount}</p>
           </div>
         </div>
         <div 
@@ -199,14 +199,14 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }} 
-          className={`bg-[#151A26] border p-4 rounded-2xl flex items-center gap-4 cursor-pointer transition-all ${activeTab === 'upcoming' ? 'border-sky-500 bg-sky-500/5' : 'border-[#2A3245]'}`}
+          className={`bg-[#151A26] border p-2 sm:p-4 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-4 cursor-pointer transition-all ${activeTab === 'upcoming' ? 'border-sky-500 bg-sky-500/5' : 'border-[#2A3245]'}`}
         >
-          <div className="p-3 bg-sky-500/10 rounded-xl">
-            <Zap className="text-sky-400" size={20} />
+          <div className="p-1.5 sm:p-3 bg-sky-500/10 rounded-lg sm:rounded-xl shrink-0">
+            <Zap className="text-sky-400" size={16} />
           </div>
-          <div>
-            <p className="text-slate-400 text-xs font-medium">À Venir</p>
-            <p className="text-xl font-bold text-white">{upcomingCount}</p>
+          <div className="min-w-0">
+            <p className="text-slate-400 text-[10px] sm:text-xs font-medium truncate">À Venir</p>
+            <p className="text-base sm:text-xl font-bold text-white leading-none mt-0.5 sm:mt-1">{upcomingCount}</p>
           </div>
         </div>
         <div 
@@ -215,14 +215,14 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }} 
-          className={`bg-[#151A26] border p-4 rounded-2xl flex items-center gap-4 cursor-pointer transition-all ${activeTab === 'completed' ? 'border-rose-500 bg-rose-500/5' : 'border-[#2A3245]'}`}
+          className={`bg-[#151A26] border p-2 sm:p-4 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-4 cursor-pointer transition-all ${activeTab === 'completed' ? 'border-rose-500 bg-rose-500/5' : 'border-[#2A3245]'}`}
         >
-          <div className="p-3 bg-rose-500/10 rounded-xl">
-            <Trophy className="text-rose-400" size={20} />
+          <div className="p-1.5 sm:p-3 bg-rose-500/10 rounded-lg sm:rounded-xl shrink-0">
+            <Trophy className="text-rose-400" size={16} />
           </div>
-          <div>
-            <p className="text-slate-400 text-xs font-medium">Terminés</p>
-            <p className="text-xl font-bold text-white">{completedCount}</p>
+          <div className="min-w-0">
+            <p className="text-slate-400 text-[10px] sm:text-xs font-medium truncate">Terminés</p>
+            <p className="text-base sm:text-xl font-bold text-white leading-none mt-0.5 sm:mt-1">{completedCount}</p>
           </div>
         </div>
       </div>
