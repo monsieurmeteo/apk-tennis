@@ -84,12 +84,27 @@ def prune_old_matches():
 
 def setup_optimized_trigger():
     """Se connecte en direct à PostgreSQL, crée l'extension trigramme, crée les index GIN et applique le trigger optimisé."""
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        print("⚠️ DATABASE_URL non définie, impossible d'optimiser le trigger.")
-        return
+    # Reconstruire le direct URL pour éviter le pooler et ses problèmes de tenant sur IPv6
+    supabase_url = os.getenv("SUPABASE_URL", "https://ubdevaemtwbzxksjlhjg.supabase.co")
+    tenant = supabase_url.replace("https://", "").split(".")[0]
+    
+    db_url_env = os.getenv("DATABASE_URL")
+    password = ""
+    if db_url_env:
+        try:
+            # Extraire le mot de passe entre 'postgres.tenant:' et '@'
+            parts = db_url_env.split("@")[0].split(":")
+            if len(parts) >= 3:
+                password = parts[2]
+        except:
+            pass
+            
+    if not password:
+        password = os.getenv("SUPABASE_SERVICE_KEY")
         
-    print("🚀 [Supabase] Connexion pour optimiser les performances de la base de données...")
+    db_url = f"postgresql://postgres:{password}@db.{tenant}.supabase.co:5432/postgres"
+        
+    print("🚀 [Supabase] Connexion en DIRECT pour optimiser les performances (port 5432)...")
     try:
         import psycopg2
         conn = psycopg2.connect(db_url, connect_timeout=15)
