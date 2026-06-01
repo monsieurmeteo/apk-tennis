@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0B101A; /* Deep navy bg */
+  --foreground: #F8FAFC;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  
+  --color-brand-primary: #00E676; /* Neon green */
+  --color-brand-odds: #FFC107; /* Bright amber/yellow */
+  --color-brand-value: #FF5252; /* Red/Pink for Value badge */
+  
+  --color-card: #151A26; /* Darker navy for cards */
+  --color-card-border: #2A3245; /* Border color */
+  --color-card-hover: #1E2536; /* Hover state */
+  
+  --color-muted: #94A3B8;
+  
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

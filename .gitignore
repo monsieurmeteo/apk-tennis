@@ -1,0 +1,32 @@
+# Next.js frontend ignores
+tennis-app/node_modules/
+tennis-app/.next/
+tennis-app/out/
+tennis-app/build/
+tennis-app/.env*
+tennis-app/.vercel/
+tennis-app/next-env.d.ts
+tennis-app/*.tsbuildinfo
+
+# Python backend ignores
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.env
+backend/.env.local
+backend/.venv/
+backend/env/
+backend/venv/
+backend/ENV/
+
+# OS/IDE ignores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
