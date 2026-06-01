@@ -122,12 +122,35 @@ export default function Dashboard() {
     return true;
   });
 
+  // Helper to parse "HH:MM" into minutes from midnight for sorting upcoming matches
+  const parseTimeToMinutes = (timeStr: string) => {
+    if (!timeStr || timeStr === 'À venir') return 9999;
+    const parts = timeStr.split(':');
+    if (parts.length === 2) {
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        return hours * 60 + minutes;
+      }
+    }
+    return 9999;
+  };
+
   // Sort pinned favorites to the absolute top of the dashboard list
+  // For upcoming matches, sort chronologically by scheduled time
   const sortedMatches = [...filteredMatches].sort((a, b) => {
     const aFav = favorites.includes(a.id);
     const bFav = favorites.includes(b.id);
     if (aFav && !bFav) return -1;
     if (!aFav && bFav) return 1;
+
+    // If both are favorites or both are not, sort by time if in upcoming tab
+    if (activeTab === 'upcoming') {
+      const timeA = parseTimeToMinutes(a.score_str);
+      const timeB = parseTimeToMinutes(b.score_str);
+      return timeA - timeB;
+    }
+
     return 0;
   });
 
