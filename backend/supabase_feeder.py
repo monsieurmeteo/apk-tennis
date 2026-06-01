@@ -379,38 +379,10 @@ def start_health_check_server():
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
                 try:
-                    from playwright.sync_api import sync_playwright
-                    with sync_playwright() as p:
-                        browser = p.chromium.launch(
-                            headless=True,
-                            args=[
-                                "--disable-blink-features=AutomationControlled",
-                                "--no-sandbox",
-                                "--disable-setuid-sandbox"
-                            ]
-                        )
-                        context = browser.new_context(
-                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                            viewport={"width": 1280, "height": 720},
-                            locale="fr-FR",
-                            timezone_id="Europe/Paris"
-                        )
-                        page = context.new_page()
-                        page.add_init_script("""
-                            Object.defineProperty(navigator, 'webdriver', {
-                                get: () => undefined
-                            });
-                            window.chrome = {
-                                runtime: {},
-                                loadTimes: function() {},
-                                csi: function() {},
-                                app: {}
-                            };
-                        """)
-                        page.goto("https://api.sofascore.com/api/v1/sport/tennis/events/live", wait_until="networkidle")
-                        content = page.locator("body").inner_text()
-                        browser.close()
-                        self.wfile.write(content.encode("utf-8"))
+                    import urllib.request
+                    req = urllib.request.Request("https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard", headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response:
+                        self.wfile.write(response.read())
                 except Exception as e:
                     self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             else:
