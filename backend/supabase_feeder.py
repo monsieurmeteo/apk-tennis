@@ -42,7 +42,7 @@ def upsert_to_supabase(matches: list, label: str = "Matchs"):
         m["updated_at"] = now_str
         
     total = len(matches)
-    chunk_size = 20
+    chunk_size = 1
     success_count = 0
     
     print(f"🚀 [Supabase] Début d'envoi de {total} {label}...")
@@ -54,7 +54,7 @@ def upsert_to_supabase(matches: list, label: str = "Matchs"):
                 f"{SUPABASE_URL}/rest/v1/tennis_matches",
                 headers=SUPABASE_HEADERS,
                 json=chunk,
-                timeout=10  # Protection absolue contre le gel du script
+                timeout=15  # Protection absolue contre le gel du script
             )
             if res.status_code in [200, 201]:
                 success_count += len(chunk)
