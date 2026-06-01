@@ -26,10 +26,15 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
   const hasHighEdge = match.edge > 20;
   const hasMediumEdge = match.edge > 12 && match.edge <= 20;
 
-  // Formattage du score en direct
   const isLive = match.is_live;
   const rawScore = match.score_str;
   const formattedScore = rawScore.replace(/,/g, '  | ');
+
+  // Détection des matchs terminés
+  const isCompleted = !isLive && (
+    rawScore === 'Terminé' ||
+    (rawScore.includes('-') && !rawScore.includes(':'))
+  );
 
   return (
     <Link href={`/match/${match.id}`} className="block group">
@@ -86,6 +91,8 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00E676] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00E676]"></span>
               </span>
+            ) : isCompleted ? (
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
             ) : (
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"></span>
             )}
@@ -93,8 +100,8 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
               {match.tournament}
             </span>
           </div>
-          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${isLive ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'}`}>
-            {isLive ? 'LIVE' : 'UPCOMING'}
+          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${isLive ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' : isCompleted ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'}`}>
+            {isLive ? 'LIVE' : isCompleted ? 'TERMINÉ' : 'À VENIR'}
           </span>
         </div>
 
