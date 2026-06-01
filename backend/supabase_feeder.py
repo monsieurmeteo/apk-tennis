@@ -76,7 +76,7 @@ def prune_old_matches():
             timeout=10
         )
         if res.status_code in [200, 204]:
-            print("🧹 [Supabase] Nettoyage réussi des anciens matchs obsolètes (plus de 24h).")
+            print("🧹 [Supabase] Nettoyage réussi des anciens matchs obsolètes (plus de 4h).")
         else:
             print(f"⚠️ [Supabase] Échec du nettoyage des anciens matchs : {res.status_code} - {res.text}")
     except Exception as e:
@@ -210,33 +210,12 @@ class ESPNScraper:
             "target_player": "A" if prob_a > prob_b else "B"
         }
 
-    def scrape_live(self) -> list:
-        matches = []
-        seen_ids = set()
-        for gender in ["ATP", "WTA"]:
-            data = self._fetch_scoreboard(gender)
-            events = data.get('events', [])
-            for event in events:
-                t_name = event.get('name', 'Tennis Match')
-                groupings = event.get('groupings', [])
-                for grouping in groupings:
-                    competitions = grouping.get('competitions', [])
-                    for comp in competitions:
-                        c_id = str(comp.get('id', ''))
-                        if not c_id or c_id in seen_ids:
-                            continue
-                        state = comp.get('status', {}).get('type', {}).get('state')
-                        if state == 'in':  # En direct
-                            m = self._parse_match(comp, t_name, is_live=True)
-                            if m:
-                                matches.append(m)
-                                seen_ids.add(c_id)
-        return matches
-
-    def scrape_scheduled(self) -> list:
+    def scrape_all(self) -> list:
+        """Récupère l'intégralité du tableau des scores (direct + programmés/terminés) en temps réel."""
         matches = []
         seen_ids = set()
         now_utc = datetime.now(timezone.utc)
+        
         for gender in ["ATP", "WTA"]:
             data = self._fetch_scoreboard(gender)
             events = data.get('events', [])
@@ -249,24 +228,27 @@ class ESPNScraper:
                         c_id = str(comp.get('id', ''))
                         if not c_id or c_id in seen_ids:
                             continue
+                            
                         state = comp.get('status', {}).get('type', {}).get('state')
-                        if state != 'in':  # Programmés ou terminés
-                            # Filtrer par date : uniquement les matchs de -18h à +36h
+                        is_live = (state == 'in')
+                        
+                        # Si le match n'est pas en direct, on applique le filtre de date glissant
+                        if not is_live:
                             date_str = comp.get('date')
                             if date_str:
                                 try:
                                     dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
                                     time_diff = (dt - now_utc).total_seconds()
-                                    # Garder les matchs de -18 heures à +36 heures
+                                    # Garder uniquement de -18 heures (terminés récents) à +36 heures (à venir)
                                     if not (-18 * 3600 <= time_diff <= 36 * 3600):
                                         continue
                                 except:
                                     pass
-                            
-                            m = self._parse_match(comp, t_name, is_live=False)
-                            if m:
-                                matches.append(m)
-                                seen_ids.add(c_id)
+                                    
+                        m = self._parse_match(comp, t_name, is_live=is_live)
+                        if m:
+                            matches.append(m)
+                            seen_ids.add(c_id)
         return matches
 
 def start_health_check_server():
@@ -315,49 +297,37 @@ def start_health_check_server():
     thread.start()
 
 def main():
-    print("🎾 Tennis Supabase Feeder - Version ESPN Démarrée 🎾")
+    print("🎾 Tennis Supabase Feeder - Version ESPN Réelle Démarrée 🎾")
     start_health_check_server()
     
     scraper = ESPNScraper()
     
-    # Force un premier grattage immédiat des programmés au démarrage
-    last_scheduled_time = datetime.now() - timedelta(hours=1)
+    # Timestamps pour rythmer le nettoyage
+    last_prune_time = datetime.now()
     
     while True:
         try:
             start_time = datetime.now()
             
-            # --- TÂCHE 1 : MATCHS EN DIRECT (Toutes les 15 secondes) ---
-            print("\n--- [FLUX LIVE] ---")
-            live_matches = scraper.scrape_live()
-            if live_matches:
-                upsert_to_supabase(live_matches, label="Live")
+            # --- SCRAPE GLOBAL TEMPS RÉEL (Toutes les 15 secondes) ---
+            print("\n--- [FLUX GLOBAL EN TEMPS RÉEL] ---")
+            all_matches = scraper.scrape_all()
+            if all_matches:
+                upsert_to_supabase(all_matches, label="Global")
             else:
-                print("📝 Aucun match en direct pour le moment.")
+                print("📝 Aucun match trouvé pour le moment.")
                 
-            # --- TÂCHE 2 : MATCHS PROGRAMMÉS (Toutes les 30 minutes) ---
+            # --- NETTOYAGE DB (Toutes les 15 minutes) ---
             now = datetime.now()
-            if (now - last_scheduled_time).total_seconds() >= 1800:
-                print("\n--- [FLUX PROGRAMMÉS] ---")
-                scheduled_matches = scraper.scrape_scheduled()
-                if scheduled_matches:
-                    import threading
-                    # Envoi en tâche de fond pour ne jamais bloquer le flux Live
-                    thread = threading.Thread(
-                        target=upsert_to_supabase,
-                        args=(scheduled_matches, "Programmes"),
-                        daemon=True
-                    )
-                    thread.start()
-                    
-                    # Nettoyage des anciens matchs obsolètes (> 24 heures)
-                    prune_thread = threading.Thread(
-                        target=prune_old_matches,
-                        daemon=True
-                    )
-                    prune_thread.start()
-                    
-                last_scheduled_time = now
+            if (now - last_prune_time).total_seconds() >= 900:
+                print("\n--- [NETTOYAGE DB] ---")
+                import threading
+                prune_thread = threading.Thread(
+                    target=prune_old_matches,
+                    daemon=True
+                )
+                prune_thread.start()
+                last_prune_time = now
                 
             # Conserver une période d'actualisation de 15s exacte
             elapsed = (datetime.now() - start_time).total_seconds()
