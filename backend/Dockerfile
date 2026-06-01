@@ -11,5 +11,5 @@ RUN pip install --no-cache-dir requests playwright==1.43.0 python-dotenv
 # Copie l'ensemble des fichiers du backend
 COPY . .
 
-# Définit la commande pour exécuter le feeder en continu
-CMD ["python", "supabase_feeder.py"]
+# Définit la commande pour exécuter le feeder en continu avec sortie non bufférisée
+CMD ["python", "-u", "supabase_feeder.py"]
