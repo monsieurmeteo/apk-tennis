@@ -222,10 +222,32 @@ class PersistentSofaScraper:
         print("🤖 Initialisation de l'instance persistante de Playwright...")
         try:
             self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=True)
-            self.page = self.browser.new_page(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            self.browser = self.playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox"
+                ]
             )
+            self.context = self.browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720},
+                locale="fr-FR",
+                timezone_id="Europe/Paris"
+            )
+            self.page = self.context.new_page()
+            self.page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                window.chrome = {
+                    runtime: {},
+                    loadTimes: function() {},
+                    csi: function() {},
+                    app: {}
+                };
+            """)
             # Timeout global de navigation à 15 secondes
             self.page.set_default_navigation_timeout(15000)
             print("✅ Playwright prêt et persistant !")
@@ -359,11 +381,33 @@ def start_health_check_server():
                 try:
                     from playwright.sync_api import sync_playwright
                     with sync_playwright() as p:
-                        browser = p.chromium.launch(headless=True)
-                        page = browser.new_page(
-                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        browser = p.chromium.launch(
+                            headless=True,
+                            args=[
+                                "--disable-blink-features=AutomationControlled",
+                                "--no-sandbox",
+                                "--disable-setuid-sandbox"
+                            ]
                         )
-                        page.goto("https://api.sofascore.com/api/v1/sport/tennis/events/live", wait_until="domcontentloaded")
+                        context = browser.new_context(
+                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                            viewport={"width": 1280, "height": 720},
+                            locale="fr-FR",
+                            timezone_id="Europe/Paris"
+                        )
+                        page = context.new_page()
+                        page.add_init_script("""
+                            Object.defineProperty(navigator, 'webdriver', {
+                                get: () => undefined
+                            });
+                            window.chrome = {
+                                runtime: {},
+                                loadTimes: function() {},
+                                csi: function() {},
+                                app: {}
+                            };
+                        """)
+                        page.goto("https://api.sofascore.com/api/v1/sport/tennis/events/live", wait_until="networkidle")
                         content = page.locator("body").inner_text()
                         browser.close()
                         self.wfile.write(content.encode("utf-8"))
