@@ -65,6 +65,22 @@ def upsert_to_supabase(matches: list, label: str = "Matchs"):
             
     print(f"✅ [Supabase] Fin d'envoi {label} : {success_count}/{total} synchronisés !")
 
+def prune_old_matches():
+    """Supprime de la base de données les matchs qui n'ont pas été mis à jour depuis plus de 24 heures."""
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        res = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/tennis_matches?updated_at=lt.{cutoff}",
+            headers=SUPABASE_HEADERS,
+            timeout=10
+        )
+        if res.status_code in [200, 204]:
+            print("🧹 [Supabase] Nettoyage réussi des anciens matchs obsolètes (plus de 24h).")
+        else:
+            print(f"⚠️ [Supabase] Échec du nettoyage des anciens matchs : {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"⚠️ [Supabase] Exception lors du nettoyage : {e}")
+
 class ESPNScraper:
     def __init__(self):
         self.urls = {
@@ -219,6 +235,7 @@ class ESPNScraper:
     def scrape_scheduled(self) -> list:
         matches = []
         seen_ids = set()
+        now_utc = datetime.now(timezone.utc)
         for gender in ["ATP", "WTA"]:
             data = self._fetch_scoreboard(gender)
             events = data.get('events', [])
@@ -233,6 +250,18 @@ class ESPNScraper:
                             continue
                         state = comp.get('status', {}).get('type', {}).get('state')
                         if state != 'in':  # Programmés ou terminés
+                            # Filtrer par date : uniquement les matchs de -18h à +36h
+                            date_str = comp.get('date')
+                            if date_str:
+                                try:
+                                    dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                                    time_diff = (dt - now_utc).total_seconds()
+                                    # Garder les matchs de -18 heures à +36 heures
+                                    if not (-18 * 3600 <= time_diff <= 36 * 3600):
+                                        continue
+                                except:
+                                    pass
+                            
                             m = self._parse_match(comp, t_name, is_live=False)
                             if m:
                                 matches.append(m)
@@ -319,6 +348,14 @@ def main():
                         daemon=True
                     )
                     thread.start()
+                    
+                    # Nettoyage des anciens matchs obsolètes (> 24 heures)
+                    prune_thread = threading.Thread(
+                        target=prune_old_matches,
+                        daemon=True
+                    )
+                    prune_thread.start()
+                    
                 last_scheduled_time = now
                 
             # Conserver une période d'actualisation de 15s exacte
