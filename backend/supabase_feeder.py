@@ -82,6 +82,26 @@ def prune_old_matches():
     except Exception as e:
         print(f"⚠️ [Supabase] Exception lors du nettoyage : {e}")
 
+def drop_slow_trigger():
+    """Se connecte en direct à PostgreSQL et supprime le trigger lent pour débloquer les upserts."""
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        print("⚠️ DATABASE_URL non définie, impossible de vérifier le trigger.")
+        return
+        
+    print("🚀 [Supabase] Connexion pour suppression du trigger lent...")
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url, connect_timeout=15)
+        cur = conn.cursor()
+        cur.execute("DROP TRIGGER IF EXISTS trg_calculate_match_stats ON tennis_matches;")
+        conn.commit()
+        print("✅ [Supabase] Trigger lent 'trg_calculate_match_stats' supprimé avec succès !")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ [Supabase] Erreur lors de la suppression du trigger : {e}")
+
 class ESPNScraper:
     def __init__(self):
         self.urls = {
@@ -299,6 +319,9 @@ def start_health_check_server():
 def main():
     print("🎾 Tennis Supabase Feeder - Version ESPN Réelle Démarrée 🎾")
     start_health_check_server()
+    
+    # Supprime le trigger lent au démarrage du conteneur dans le cloud
+    drop_slow_trigger()
     
     scraper = ESPNScraper()
     

@@ -4,8 +4,8 @@ FROM python:3.10-slim
 # Définit le dossier de travail dans le conteneur
 WORKDIR /app
 
-# Installe uniquement les dépendances nécessaires à notre feeder ESPN (ultra rapide et sans Playwright)
-RUN pip install --no-cache-dir requests python-dotenv
+# Installe les dépendances légères nécessaires au feeder (y compris psycopg2-binary pour administrer la base de données en direct)
+RUN pip install --no-cache-dir requests python-dotenv psycopg2-binary
 
 # Copie l'ensemble des fichiers du backend
 COPY . .
