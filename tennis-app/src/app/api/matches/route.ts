@@ -39,6 +39,15 @@ export async function GET() {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // Non-blocking ping to Render to keep scraper service awake
+    try {
+      fetch('https://apk-tennis-docker.onrender.com').catch((e) => {
+        console.log('Background ping to Render failed (expected/non-blocking):', e.message);
+      });
+    } catch (e) {
+      // Ignorer les erreurs de fetch en arrière-plan
+    }
+
     const { data, error } = await supabase
       .from('tennis_matches')
       .select('*')
