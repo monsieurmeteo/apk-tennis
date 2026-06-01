@@ -195,6 +195,7 @@ class ESPNScraper:
 
     def scrape_live(self) -> list:
         matches = []
+        seen_ids = set()
         for gender in ["ATP", "WTA"]:
             data = self._fetch_scoreboard(gender)
             events = data.get('events', [])
@@ -204,15 +205,20 @@ class ESPNScraper:
                 for grouping in groupings:
                     competitions = grouping.get('competitions', [])
                     for comp in competitions:
+                        c_id = str(comp.get('id', ''))
+                        if not c_id or c_id in seen_ids:
+                            continue
                         state = comp.get('status', {}).get('type', {}).get('state')
                         if state == 'in':  # En direct
                             m = self._parse_match(comp, t_name, is_live=True)
                             if m:
                                 matches.append(m)
+                                seen_ids.add(c_id)
         return matches
 
     def scrape_scheduled(self) -> list:
         matches = []
+        seen_ids = set()
         for gender in ["ATP", "WTA"]:
             data = self._fetch_scoreboard(gender)
             events = data.get('events', [])
@@ -222,11 +228,15 @@ class ESPNScraper:
                 for grouping in groupings:
                     competitions = grouping.get('competitions', [])
                     for comp in competitions:
+                        c_id = str(comp.get('id', ''))
+                        if not c_id or c_id in seen_ids:
+                            continue
                         state = comp.get('status', {}).get('type', {}).get('state')
                         if state != 'in':  # Programmés ou terminés
                             m = self._parse_match(comp, t_name, is_live=False)
                             if m:
                                 matches.append(m)
+                                seen_ids.add(c_id)
         return matches
 
 def start_health_check_server():
