@@ -1,12 +1,11 @@
-# Utilise l'image Python officielle pré-configurée avec Playwright par Microsoft
-FROM mcr.microsoft.com/playwright/python:v1.43.0-jammy
+# Utilise une image Python ultra-légère (slim)
+FROM python:3.10-slim
 
-# Définit le dossier de travail
+# Définit le dossier de travail dans le conteneur
 WORKDIR /app
 
-# Installe uniquement les dépendances légères nécessaires au feeder en épinglant la version pour correspondre aux navigateurs pré-installés
-RUN pip install --no-cache-dir requests playwright==1.43.0 python-dotenv
-
+# Installe uniquement les dépendances nécessaires à notre feeder ESPN (ultra rapide et sans Playwright)
+RUN pip install --no-cache-dir requests python-dotenv
 
 # Copie l'ensemble des fichiers du backend
 COPY . .
