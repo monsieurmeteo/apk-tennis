@@ -375,18 +375,18 @@ export default function Dashboard() {
           ) : polyMarkets.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
               <style>{`
-                @keyframes poly-glow-pulse {
+                @keyframes poly-green-pulse {
                   0%, 100% {
-                    box-shadow: 0 0 4px var(--glow-color, rgba(168, 85, 247, 0.35)), inset 0 1px 3px rgba(168, 85, 247, 0.05);
-                    border-color: rgba(168, 85, 247, 0.3);
+                    box-shadow: 0 0 5px var(--glow-color, rgba(0, 230, 118, 0.35)), inset 0 1px 3px rgba(0, 230, 118, 0.05);
+                    border-color: rgba(0, 230, 118, 0.4);
                   }
                   50% {
-                    box-shadow: 0 0 16px var(--glow-color, rgba(168, 85, 247, 0.75)), inset 0 1px 3px rgba(168, 85, 247, 0.15);
-                    border-color: rgba(168, 85, 247, 0.85);
+                    box-shadow: 0 0 18px var(--glow-color, rgba(0, 230, 118, 0.8)), inset 0 1px 3px rgba(0, 230, 118, 0.2);
+                    border-color: rgba(0, 230, 118, 0.9);
                   }
                 }
-                .animate-poly-favorite {
-                  animation: poly-glow-pulse var(--pulse-duration, 2s) infinite ease-in-out;
+                .animate-poly-favorite-green {
+                  animation: poly-green-pulse var(--pulse-duration, 2s) infinite ease-in-out;
                 }
               `}</style>
               {polyMarkets
@@ -406,18 +406,18 @@ export default function Dashboard() {
                   const polyFavorite = isFavoriteA ? m.outcomes[0] : m.outcomes[1];
                   const polyFavoriteProb = isFavoriteA ? m.probabilities[0] : m.probabilities[1];
                   
-                  // Blinking animation parameters based on transaction volume
+                  // Blinking animation parameters based on transaction volume (green neon pulse)
                   const pulseDuration = m.volume >= 150000 ? '0.8s' : m.volume >= 50000 ? '1.8s' : '3s';
                   const glowColor = m.volume >= 150000 
-                    ? 'rgba(168, 85, 247, 0.85)' 
+                    ? 'rgba(0, 230, 118, 0.9)' 
                     : m.volume >= 50000 
-                      ? 'rgba(168, 85, 247, 0.55)' 
-                      : 'rgba(168, 85, 247, 0.3)';
+                      ? 'rgba(0, 230, 118, 0.6)' 
+                      : 'rgba(0, 230, 118, 0.35)';
                   
                   return (
                     <div 
                       key={m.id} 
-                      className={`bg-gradient-to-br from-[#151A26] to-[#1E1933] border border-purple-500/30 hover:border-purple-400 shadow-[0_0_12px_rgba(147,51,234,0.04)] hover:shadow-[0_0_20px_rgba(147,51,234,0.08)] rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01]`}
+                      className="bg-gradient-to-br from-[#121622] to-[#171226] border border-[#2D354B] hover:border-purple-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.4)] rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01]"
                     >
                       {/* Top Badges */}
                       <div className="flex justify-between items-start mb-3 gap-2">
@@ -425,7 +425,7 @@ export default function Dashboard() {
                           <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider shrink-0">
                             PREDICTION WEB3
                           </span>
-                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-[#D8B4FE] border border-purple-500/30 uppercase tracking-wider shrink-0 flex items-center gap-0.5 shadow-[0_0_8px_rgba(168,85,247,0.15)] animate-pulse">
+                          <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/30 uppercase tracking-wider shrink-0 flex items-center gap-0.5 shadow-[0_0_12px_rgba(0,230,118,0.2)] animate-pulse">
                             🏆 GAGNANT PRÉVU : {polyFavorite} ({polyFavoriteProb}%)
                           </span>
                         </div>
@@ -438,53 +438,53 @@ export default function Dashboard() {
                       </div>
 
                       {/* Title/Question */}
-                      <h3 className="text-sm font-extrabold text-white leading-snug mb-4">
+                      <h3 className="text-sm sm:text-base font-extrabold text-white leading-snug mb-4">
                         {m.question}
                       </h3>
 
-                      {/* Comparison / Outcomes & Prices */}
+                      {/* Outcomes & Prices with dynamic highlighting */}
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         {/* Outcome A */}
                         <div 
-                          className={`bg-[#191F2E]/60 border rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200 ${
+                          className={`border rounded-xl p-3.5 flex flex-col justify-between min-h-[76px] transition-all duration-200 ${
                             isFavoriteA 
-                              ? 'animate-poly-favorite shadow-[inset_0_1px_5px_rgba(168,85,247,0.05)]' 
-                              : 'border-[#2A3245]'
+                              ? 'bg-gradient-to-br from-[#121E19] to-[#0A261D] animate-poly-favorite-green shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' 
+                              : 'bg-[#151924]/60 border-[#2A3245] opacity-50'
                           }`}
                           style={isFavoriteA ? {
                             '--pulse-duration': pulseDuration,
                             '--glow-color': glowColor
                           } as React.CSSProperties : undefined}
                         >
-                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${isFavoriteA ? 'text-purple-400' : 'text-slate-400'}`}>
+                          <span className={`text-xs sm:text-sm font-extrabold truncate uppercase tracking-wider flex items-center gap-1.5 ${isFavoriteA ? 'text-[#00E676]' : 'text-slate-400'}`}>
                             {isFavoriteA && <span className="text-amber-400 animate-bounce">👑</span>}
                             {m.outcomes[0]}
                           </span>
-                          <div className="flex justify-between items-baseline mt-1">
-                            <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[0]} $</span>
-                            <span className="text-base font-mono font-extrabold text-white">{m.probabilities[0]}%</span>
+                          <div className="flex justify-between items-baseline mt-2">
+                            <span className={`text-[10px] sm:text-xs font-bold ${isFavoriteA ? 'text-slate-300' : 'text-slate-500'}`}>Jeton : {m.prices[0]} $</span>
+                            <span className={`text-base sm:text-lg font-mono font-black ${isFavoriteA ? 'text-[#00E676]' : 'text-slate-400'}`}>{m.probabilities[0]}%</span>
                           </div>
                         </div>
 
                         {/* Outcome B */}
                         <div 
-                          className={`bg-[#191F2E]/60 border rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200 ${
+                          className={`border rounded-xl p-3.5 flex flex-col justify-between min-h-[76px] transition-all duration-200 ${
                             isFavoriteB 
-                              ? 'animate-poly-favorite shadow-[inset_0_1px_5px_rgba(168,85,247,0.05)]' 
-                              : 'border-[#2A3245]'
+                              ? 'bg-gradient-to-br from-[#121E19] to-[#0A261D] animate-poly-favorite-green shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' 
+                              : 'bg-[#151924]/60 border-[#2A3245] opacity-50'
                           }`}
                           style={isFavoriteB ? {
                             '--pulse-duration': pulseDuration,
                             '--glow-color': glowColor
                           } as React.CSSProperties : undefined}
                         >
-                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${isFavoriteB ? 'text-purple-400' : 'text-slate-400'}`}>
+                          <span className={`text-xs sm:text-sm font-extrabold truncate uppercase tracking-wider flex items-center gap-1.5 ${isFavoriteB ? 'text-[#00E676]' : 'text-slate-400'}`}>
                             {isFavoriteB && <span className="text-amber-400 animate-bounce">👑</span>}
                             {m.outcomes[1]}
                           </span>
-                          <div className="flex justify-between items-baseline mt-1">
-                            <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[1]} $</span>
-                            <span className="text-base font-mono font-extrabold text-white">{m.probabilities[1]}%</span>
+                          <div className="flex justify-between items-baseline mt-2">
+                            <span className={`text-[10px] sm:text-xs font-bold ${isFavoriteB ? 'text-slate-300' : 'text-slate-500'}`}>Jeton : {m.prices[1]} $</span>
+                            <span className={`text-base sm:text-lg font-mono font-black ${isFavoriteB ? 'text-[#00E676]' : 'text-slate-400'}`}>{m.probabilities[1]}%</span>
                           </div>
                         </div>
                       </div>
@@ -496,7 +496,7 @@ export default function Dashboard() {
                             INDICE DE CONFIANCE MARCHÉ
                           </div>
                           <span className="text-xs font-bold text-slate-300 mt-1">
-                            Consensus foule : <span className="text-purple-400 font-black">{polyFavoriteProb}%</span> en faveur de {polyFavorite}
+                            Consensus foule : <span className="text-[#00E676] font-black">{polyFavoriteProb}%</span> en faveur de {polyFavorite}
                           </span>
                         </div>
 
@@ -504,7 +504,7 @@ export default function Dashboard() {
                           href={`https://polymarket.com/event/${m.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)] hover:shadow-[0_0_15px_rgba(147,51,234,0.5)] px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 flex items-center gap-1"
+                          className="bg-[#00E676] hover:bg-[#00FF87] text-[#0B101A] shadow-[0_0_15px_rgba(0,230,118,0.35)] hover:shadow-[0_0_20px_rgba(0,230,118,0.5)] px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 flex items-center gap-1"
                         >
                           <span>Parier sur le favori ↗</span>
                         </a>

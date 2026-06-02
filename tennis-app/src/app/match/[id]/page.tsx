@@ -563,14 +563,14 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
         })()}
 
         {/* Section Web3 Polymarket en temps réel */}
-        <div className="bg-[#151A26] border border-[#2A3245] rounded-2xl p-5 space-y-4">
+        <div className="bg-[#151A26] border border-[#2D354B] rounded-2xl p-5 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
           <div className="flex items-center justify-between border-b border-[#2A3245] pb-3">
             <div className="flex items-center gap-2">
-              <Star size={16} className="text-purple-400 animate-pulse fill-purple-400/20" />
-              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-200">Indicateurs de Marché Web3 (Polymarket)</h3>
+              <Star size={16} className="text-[#00E676] animate-pulse fill-[#00E676]/20" />
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#00E676] drop-shadow-[0_0_6px_rgba(0,230,118,0.15)]">Indicateurs de Marché Web3 (Polymarket)</h3>
             </div>
             {polymarketMarket && (
-              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
+              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20 uppercase tracking-wider shadow-[0_0_8px_rgba(0,230,118,0.08)]">
                 Volume : {polymarketMarket.volume.toLocaleString('fr-FR')} $
               </span>
             )}
@@ -580,31 +580,35 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
             <div className="space-y-4">
               <div>
                 <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mb-1">Marché en cours sur Polymarket</p>
-                <p className="text-xs text-slate-300 font-bold leading-normal">{polymarketMarket.question}</p>
+                <p className="text-xs text-white font-black leading-normal">{polymarketMarket.question}</p>
               </div>
 
               {/* Progress and probabilities */}
               <div className="space-y-3">
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold tracking-wide">
-                  <span>{polymarketMarket.outcomes[0]} : {polymarketMarket.probabilities[0]}%</span>
-                  <span>{polymarketMarket.outcomes[1]} : {polymarketMarket.probabilities[1]}%</span>
+                <div className="flex justify-between text-xs text-slate-300 font-bold tracking-wide">
+                  <span className={polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? 'text-[#00E676] font-black' : 'text-slate-400'}>
+                    {polymarketMarket.outcomes[0]} : {polymarketMarket.probabilities[0]}%
+                  </span>
+                  <span className={polymarketMarket.probabilities[1] > polymarketMarket.probabilities[0] ? 'text-[#00E676] font-black' : 'text-slate-400'}>
+                    {polymarketMarket.outcomes[1]} : {polymarketMarket.probabilities[1]}%
+                  </span>
                 </div>
                 <div className="h-2 bg-slate-950 p-[1px] rounded-full overflow-hidden flex gap-0.5 border border-[#2A3245]/20">
-                  <div className="bg-purple-600 rounded-l-full shadow-[0_0_8px_rgba(147,51,234,0.6)]" style={{ width: `${polymarketMarket.probabilities[0]}%` }}></div>
+                  <div className="bg-[#00E676] rounded-l-full shadow-[0_0_8px_rgba(0,230,118,0.6)]" style={{ width: `${polymarketMarket.probabilities[0]}%` }}></div>
                   <div className="bg-slate-700 rounded-r-full" style={{ width: `${polymarketMarket.probabilities[1]}%` }}></div>
                 </div>
               </div>
 
               {/* Consensus de la foule description */}
-              <div className="bg-[#1A2233]/60 border border-[#2A3245]/40 rounded-xl p-3.5 space-y-2">
+              <div className="bg-gradient-to-br from-[#121E19]/90 to-[#0A261D]/90 border border-[#00E676]/20 rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Analyse du Marché Web3</span>
-                  <span className="text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-purple-500/20">
+                  <span className="text-[#00E676] bg-[#00E676]/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-[#00E676]/30 shadow-[0_0_8px_rgba(0,230,118,0.1)]">
                     🏆 CROWD FAVORITE
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                  Le consensus actuel du marché de prédiction décentralisé Polymarket désigne <strong>{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.outcomes[0] : polymarketMarket.outcomes[1]}</strong> comme le gagnant prévu de cette rencontre avec une probabilité implicite de <strong>{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]}%</strong> (jeton de favori négocié à 0.{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]} $).
+                  Le consensus actuel du marché de prédiction décentralisé Polymarket désigne <strong className="text-[#00E676] font-black">{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.outcomes[0] : polymarketMarket.outcomes[1]}</strong> comme le gagnant prévu de cette rencontre avec une probabilité implicite de <strong className="text-[#00E676] font-black">{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]}%</strong> (jeton de favori négocié à 0.{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]} $).
                 </p>
               </div>
 
@@ -613,7 +617,7 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
                 href={`https://polymarket.com/event/${polymarketMarket.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(147,51,234,0.3)] hover:scale-[1.01] active:scale-95 cursor-pointer"
+                className="w-full h-11 bg-[#00E676] hover:bg-[#00FF87] text-[#0B101A] font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(0,230,118,0.35)] hover:scale-[1.01] active:scale-95 cursor-pointer"
               >
                 <span>Parier sur le favori sur Polymarket ↗</span>
               </a>
