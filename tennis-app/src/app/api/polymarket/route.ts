@@ -119,8 +119,17 @@ export async function GET() {
     }
 
     // 3. Filter and parse tennis events
+    const now = new Date();
     for (const e of rawEvents) {
       const title = e.title || '';
+      
+      // Skip completed/past events
+      if (e.endDate) {
+        const eventEndDate = new Date(e.endDate);
+        if (eventEndDate < now) {
+          continue;
+        }
+      }
       
       // Filter out outrights (ex: "Men's French Open Winner") to keep only match duels
       if (!title.toLowerCase().includes('vs') && !title.toLowerCase().includes('vs.')) {
@@ -131,16 +140,57 @@ export async function GET() {
       if (markets.length === 0) continue;
       
       // Find the primary match winner market:
-      // It is the one that is not handicap, not over/under, and represents the winner
       const winnerMarket = markets.find((m: any) => {
         const q = (m.question || '').toLowerCase();
-        return !q.includes('o/u') && 
-               !q.includes('handicap') && 
-               !q.includes('set 1') && 
-               !q.includes('set 2') && 
-               !q.includes('winner:') &&
-               !q.includes('completed match');
-      }) || markets[0];
+        
+        // 1. Reject questions containing non-winner keywords
+        const containsNonWinnerKeywords = 
+          q.includes('o/u') || 
+          q.includes('handicap') || 
+          q.includes('set 1') || 
+          q.includes('set 2') || 
+          q.includes('set 3') || 
+          q.includes('set 4') || 
+          q.includes('set 5') || 
+          q.includes('winner:') || 
+          q.includes('completed match') ||
+          q.includes('most aces') ||
+          q.includes('tiebreak') ||
+          q.includes('to win a set') ||
+          q.includes('games') ||
+          q.includes('total');
+          
+        if (containsNonWinnerKeywords) return false;
+        
+        // 2. Reject outcomes that are Yes/No, Over/Under, etc.
+        let outcomes: string[] = [];
+        try {
+          outcomes = typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : m.outcomes;
+        } catch (err) {
+          outcomes = m.outcomes || [];
+        }
+        
+        if (outcomes.length < 2) return false;
+        
+        const first = outcomes[0].toLowerCase().trim();
+        const second = outcomes[1].toLowerCase().trim();
+        
+        if (
+          first === 'yes' || first === 'no' ||
+          first === 'over' || first === 'under' ||
+          first.startsWith('over ') || first.startsWith('under ') ||
+          second === 'yes' || second === 'no' ||
+          second === 'over' || second === 'under' ||
+          second.startsWith('over ') || second.startsWith('under ')
+        ) {
+          return false;
+        }
+        
+        return true;
+      });
+      
+      // If no valid match winner market is found, skip this event entirely!
+      if (!winnerMarket) continue;
       
       let prices: string[] = [];
       let outcomes: string[] = [];
