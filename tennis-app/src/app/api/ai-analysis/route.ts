@@ -85,7 +85,8 @@ LIVRABLE FINAL ATTENDU (en français, strict, format Markdown) :
 🎾 **Contexte et Probabilités** : [Résumé probabilités implicites vs tes probabilités]
 📊 **Analyse Value & De-Vigging** : [Le marché sous-estime-t-il un joueur ? Décision Value Bet Oui/Non]
 🔑 **Facteurs Tactiques et Forme** : [Points clés de la forme et du service]
-🔥 **Verdict et Gestion (Quarter-Kelly)** : [Recommandation claire avec Kelly Fractionné (max 5%). Alerte Abandon si pertinent.]`;
+🔥 **Verdict et Gestion (Quarter-Kelly)** : [Recommandation claire avec Kelly Fractionné (max 5%). Alerte Abandon si pertinent.]
+🎯 **Conseil de Pari Actionnable** : [Ton meilleur conseil concret et direct pour ce match. Ex: "Parier sur la victoire de X", "Parier que Y gagne au moins 1 set", "Parier sur +22.5 jeux", ou "Passez votre chemin (No bet)" si aucune value.]`;
 
     const userPrompt = `DONNÉES DU MATCH À ANALYSER :
 Joueur A : ${playerA.name} (Cote Pinnacle/Bookmaker : ${oddsA || 'N/A'}) - ELO : ${eloAText}
