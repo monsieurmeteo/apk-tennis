@@ -117,7 +117,7 @@ Génère ton analyse finale selon le format demandé. Reste percutant et profess
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.5,
-        max_tokens: 600,
+        max_tokens: 2000,
       }),
     });
 
