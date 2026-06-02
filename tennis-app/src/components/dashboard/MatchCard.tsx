@@ -54,7 +54,12 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
         const data = await res.json();
         setAiAnalysis(data.advice);
       } else {
-        setAiAnalysis("L'IA n'a pas pu générer d'analyse.");
+        try {
+          const errData = await res.json();
+          setAiAnalysis(`Erreur: ${errData.error || "L'IA n'a pas pu générer d'analyse."}`);
+        } catch (e) {
+          setAiAnalysis("L'IA n'a pas pu générer d'analyse.");
+        }
       }
     } catch (err) {
       setAiAnalysis("Erreur de connexion IA.");

@@ -37,10 +37,8 @@ export async function POST(request: Request) {
     // Fetch deep stats internally
     let statsData: any = null;
     try {
-      const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000';
-      const protocol = request.headers.get('x-forwarded-proto') || 'http';
-      const baseUrl = `${protocol}://${host}`;
-      const url = new URL(`/api/player-stats`, baseUrl);
+      const url = new URL(request.url);
+      url.pathname = '/api/player-stats';
       url.searchParams.set('playerA', playerA.name);
       url.searchParams.set('playerB', playerB.name);
       url.searchParams.set('surface', surface);
@@ -126,11 +124,11 @@ Génère ton analyse finale selon le format demandé. Reste percutant et profess
     if (!response.ok) {
       const err = await response.text();
       console.error('OpenRouter Error:', err);
-      return NextResponse.json({ error: 'Erreur lors de l\'appel à l\'IA OpenRouter.' }, { status: 500 });
+      return NextResponse.json({ error: `Erreur OpenRouter: ${err}` }, { status: 500 });
     }
 
     const data = await response.json();
-    const advice = data.choices?.[0]?.message?.content || "Désolé, je n'ai pas pu générer d'analyse pour le moment.";
+    const advice = data.choices?.[0]?.message?.content || `Erreur IA: ${JSON.stringify(data)}`;
 
     return NextResponse.json({ advice });
 
