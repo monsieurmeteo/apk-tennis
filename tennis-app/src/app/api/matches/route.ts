@@ -93,7 +93,8 @@ export async function GET() {
       .from('tennis_matches')
       .select('*')
       .order('is_live', { ascending: false })
-      .order('updated_at', { ascending: false });
+      .order('edge', { ascending: false })
+      .order('id', { ascending: true });
 
     if (error) throw error;
 
