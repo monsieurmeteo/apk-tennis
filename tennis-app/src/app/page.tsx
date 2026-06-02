@@ -388,6 +388,17 @@ export default function Dashboard() {
                   const absEdge = Math.abs(m.edge);
                   const isHighEdge = hasEdge && absEdge >= 10;
                   
+                  // Calcul du gagnant ELO prévu et de sa probabilité
+                  const eloWinner = hasEdge 
+                    ? m.ourProbA > 50 ? m.outcomes[0] : m.outcomes[1]
+                    : null;
+                  const eloWinnerProb = hasEdge
+                    ? m.ourProbA > 50 ? m.ourProbA : m.ourProbB
+                    : null;
+                  
+                  const isWinnerA = eloWinner === m.outcomes[0];
+                  const isWinnerB = eloWinner === m.outcomes[1];
+                  
                   return (
                     <div 
                       key={m.id} 
@@ -395,9 +406,16 @@ export default function Dashboard() {
                     >
                       {/* Top Badges */}
                       <div className="flex justify-between items-start mb-3 gap-2">
-                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider shrink-0">
-                          PREDICTION WEB3
-                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider shrink-0">
+                            PREDICTION WEB3
+                          </span>
+                          {eloWinner && (
+                            <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20 uppercase tracking-wider shrink-0 flex items-center gap-0.5 shadow-[0_0_8px_rgba(0,230,118,0.15)]">
+                              🏆 PRÉVU : {eloWinner} ({eloWinnerProb}%)
+                            </span>
+                          )}
+                        </div>
                         
                         <div className="flex flex-col items-end gap-1 select-none">
                           <span className="text-[10px] font-bold text-slate-400">
@@ -414,8 +432,11 @@ export default function Dashboard() {
                       {/* Comparison / Outcomes & Prices */}
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         {/* Outcome A */}
-                        <div className="bg-[#191F2E]/60 border border-[#2A3245] rounded-xl p-3 flex flex-col justify-between h-14">
-                          <span className="text-[10px] font-extrabold text-slate-400 truncate uppercase tracking-wider">{m.outcomes[0]}</span>
+                        <div className={`bg-[#191F2E]/60 border ${hasEdge && isWinnerA ? 'border-[#00E676]/60 shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' : 'border-[#2A3245]'} rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200`}>
+                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${hasEdge && isWinnerA ? 'text-[#00E676]' : 'text-slate-400'}`}>
+                            {hasEdge && isWinnerA && <span className="text-amber-400 animate-pulse">👑</span>}
+                            {m.outcomes[0]}
+                          </span>
                           <div className="flex justify-between items-baseline mt-1">
                             <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[0]} $</span>
                             <span className="text-base font-mono font-extrabold text-white">{m.probabilities[0]}%</span>
@@ -423,8 +444,11 @@ export default function Dashboard() {
                         </div>
 
                         {/* Outcome B */}
-                        <div className="bg-[#191F2E]/60 border border-[#2A3245] rounded-xl p-3 flex flex-col justify-between h-14">
-                          <span className="text-[10px] font-extrabold text-slate-400 truncate uppercase tracking-wider">{m.outcomes[1]}</span>
+                        <div className={`bg-[#191F2E]/60 border ${hasEdge && isWinnerB ? 'border-[#00E676]/60 shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' : 'border-[#2A3245]'} rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200`}>
+                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${hasEdge && isWinnerB ? 'text-[#00E676]' : 'text-slate-400'}`}>
+                            {hasEdge && isWinnerB && <span className="text-amber-400 animate-pulse">👑</span>}
+                            {m.outcomes[1]}
+                          </span>
                           <div className="flex justify-between items-baseline mt-1">
                             <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[1]} $</span>
                             <span className="text-base font-mono font-extrabold text-white">{m.probabilities[1]}%</span>
