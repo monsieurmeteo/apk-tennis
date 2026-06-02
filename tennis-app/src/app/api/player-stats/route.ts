@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import path from 'path';
+import fs from 'fs';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -167,6 +169,43 @@ export async function GET(request: Request) {
     getPlayerAverages(lastB)
   ]);
 
+  // 6. ELO RATINGS FUZZY LOOKUP
+  let eloA = { name: playerA, general: 1500.0, hard: 1500.0, clay: 1500.0, grass: 1500.0 };
+  let eloB = { name: playerB, general: 1500.0, hard: 1500.0, clay: 1500.0, grass: 1500.0 };
+
+  try {
+    const eloPath = path.join(process.cwd(), 'src/data/player_elo.json');
+    if (fs.existsSync(eloPath)) {
+      const eloDb = JSON.parse(fs.readFileSync(eloPath, 'utf8'));
+      
+      const findPlayerElo = (fullName: string) => {
+        const normalized = fullName.toLowerCase().trim();
+        // Exact match
+        if (eloDb[normalized]) return eloDb[normalized];
+        // Fuzzy match
+        const foundKey = Object.keys(eloDb).find(key => 
+          key.includes(normalized) || normalized.includes(key)
+        );
+        if (foundKey) return eloDb[foundKey];
+        // Last name match
+        const lastName = normalized.split(' ').pop() || '';
+        if (lastName.length > 2) {
+          const foundLastNameKey = Object.keys(eloDb).find(key => key.includes(lastName));
+          if (foundLastNameKey) return eloDb[foundLastNameKey];
+        }
+        return null;
+      };
+
+      const foundA = findPlayerElo(playerA);
+      if (foundA) eloA = foundA;
+
+      const foundB = findPlayerElo(playerB);
+      if (foundB) eloB = foundB;
+    }
+  } catch (err) {
+    console.error("Error fetching Elo ratings from JSON:", err);
+  }
+
   return NextResponse.json({
     h2h: { winsA, winsB, matches: h2hMatches },
     formA,
@@ -175,6 +214,8 @@ export async function GET(request: Request) {
     surfaceB: surfB,
     surface,
     averagesA,
-    averagesB
+    averagesB,
+    eloA,
+    eloB
   });
 }

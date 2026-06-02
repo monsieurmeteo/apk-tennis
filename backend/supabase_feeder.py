@@ -367,6 +367,16 @@ class ESPNScraper:
             home_df = sets_played + random.randint(0, 2)
             away_df = sets_played + random.randint(0, 2)
             
+            # Détection réelle du serveur via possession
+            home_serving = home.get('possession', False)
+            away_serving = away.get('possession', False)
+            if home_serving:
+                serving_player = "A"
+            elif away_serving:
+                serving_player = "B"
+            else:
+                serving_player = None
+                
             mock_stats = {
                 "Aces": {"home": str(home_aces), "away": str(away_aces)},
                 "Double faults": {"home": str(home_df), "away": str(away_df)},
@@ -375,7 +385,7 @@ class ESPNScraper:
                 "Break points converted": {"home": f"{random.randint(0,3)}/{random.randint(3,6)}", "away": f"{random.randint(0,3)}/{random.randint(3,6)}"}
             }
             live_stats = {
-                "serving_player": "A" if random.random() > 0.5 else "B",
+                "serving_player": serving_player,
                 "stats": mock_stats
             }
             tournament = f"{tournament} || {json.dumps(live_stats)}"

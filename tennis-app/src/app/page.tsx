@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Target, Activity, Zap, Play, Search, Filter, Star, Trophy } from 'lucide-react';
 import { MatchCard } from '../components/dashboard/MatchCard';
 
@@ -19,11 +20,28 @@ export default function Dashboard() {
   const [matches, setMatches] = useState<MatchData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'live' | 'upcoming' | 'completed'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'upcoming' | 'completed' | 'polymarket'>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTournament, setSelectedTournament] = useState('');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [polyMarkets, setPolyMarkets] = useState<any[]>([]);
+  const [loadingPoly, setLoadingPoly] = useState(false);
+
+  const fetchPolymarket = async () => {
+    try {
+      setLoadingPoly(true);
+      const res = await fetch('/api/polymarket');
+      if (res.ok) {
+        const data = await res.json();
+        setPolyMarkets(data.markets || []);
+      }
+    } catch (err) {
+      console.error("Erreur Polymarket Fetch:", err);
+    } finally {
+      setLoadingPoly(false);
+    }
+  };
 
   const fetchMatches = async () => {
     try {
@@ -45,6 +63,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Premier fetch immédiat
     fetchMatches();
+    fetchPolymarket();
     
     // Charger les favoris depuis le localStorage
     try {
@@ -58,7 +77,14 @@ export default function Dashboard() {
     
     // Polling toutes les 10 secondes pour les scores en direct
     const interval = setInterval(fetchMatches, 10000);
-    return () => clearInterval(interval);
+    
+    // Polling toutes les 20 secondes pour Polymarket
+    const polyInterval = setInterval(fetchPolymarket, 20000);
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(polyInterval);
+    };
   }, []);
 
   const onToggleFavorite = (id: string) => {
@@ -151,7 +177,8 @@ export default function Dashboard() {
       return timeA - timeB;
     }
 
-    return 0;
+    // Stable sort for live and completed matches to prevent jumping around
+    return a.tournament.localeCompare(b.tournament) || a.id.localeCompare(b.id);
   });
 
   return (
@@ -228,14 +255,14 @@ export default function Dashboard() {
       </div>
 
       {/* Segmented Tab Control */}
-      <div className="flex bg-[#151A26] border border-[#2A3245] p-1 rounded-xl gap-1">
+      <div className="flex bg-[#151A26] border border-[#2A3245] p-1 rounded-xl gap-1 overflow-x-auto scrollbar-none">
         <button
           onClick={() => {
             setActiveTab('live');
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'live' 
               ? 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.3)]' 
               : 'text-slate-400 hover:text-slate-200'
@@ -250,7 +277,7 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'upcoming' 
               ? 'bg-sky-500 text-slate-950 shadow-[0_0_10px_rgba(14,165,233,0.3)]' 
               : 'text-slate-400 hover:text-slate-200'
@@ -265,7 +292,7 @@ export default function Dashboard() {
             setSearchQuery('');
             setSelectedTournament('');
           }}
-          className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'completed' 
               ? 'bg-rose-500 text-[#0B101A] shadow-[0_0_10px_rgba(244,63,94,0.3)]' 
               : 'text-slate-400 hover:text-slate-200'
@@ -273,6 +300,22 @@ export default function Dashboard() {
         >
           <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'completed' ? 'bg-[#0B101A]' : 'bg-rose-500'}`}></span>
           <span>Terminés ({completedCount})</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('polymarket');
+            setSearchQuery('');
+            setSelectedTournament('');
+            fetchPolymarket();
+          }}
+          className={`flex-1 py-2 px-3 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'polymarket' 
+              ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)] font-extrabold' 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'polymarket' ? 'bg-white' : 'bg-purple-400 animate-pulse'}`}></span>
+          <span>Polymarket Live ({polyMarkets.length})</span>
         </button>
       </div>
 
@@ -323,47 +366,172 @@ export default function Dashboard() {
 
       {/* Dynamic Match List */}
       <div className="space-y-4 pb-10">
-        {!isConnected && matches.length === 0 ? (
-          <div className="text-center py-10 text-slate-500">
-            Connexion au serveur de statistiques...
-          </div>
-        ) : sortedMatches.length > 0 ? (
-          sortedMatches.map((match) => (
-            <MatchCard 
-              key={match.id} 
-              match={match} 
-              isFavorited={favorites.includes(match.id)}
-              onToggleFavorite={onToggleFavorite}
-            />
-          ))
+        {activeTab === 'polymarket' ? (
+          loadingPoly && polyMarkets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
+              <div className="w-6 h-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"></div>
+              <p className="text-xs">Chargement des marchés actifs Polymarket...</p>
+            </div>
+          ) : polyMarkets.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4">
+              {polyMarkets
+                .filter(m => {
+                  const q = searchQuery.toLowerCase().trim();
+                  return q === '' || 
+                    m.question.toLowerCase().includes(q) || 
+                    m.category.toLowerCase().includes(q) ||
+                    (m.outcomes[0] || '').toLowerCase().includes(q) ||
+                    (m.outcomes[1] || '').toLowerCase().includes(q);
+                })
+                .map((m) => {
+                  const hasEdge = m.matchedMatchId !== null;
+                  const absEdge = Math.abs(m.edge);
+                  const isHighEdge = hasEdge && absEdge >= 10;
+                  
+                  return (
+                    <div 
+                      key={m.id} 
+                      className={`bg-gradient-to-br from-[#151A26] to-[#1E1933] border ${hasEdge ? isHighEdge ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'border-purple-500/50 hover:border-purple-400 shadow-[0_0_12px_rgba(147,51,234,0.05)]' : 'border-[#2A3245] hover:border-purple-500/30'} rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01]`}
+                    >
+                      {/* Top Badges */}
+                      <div className="flex justify-between items-start mb-3 gap-2">
+                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider shrink-0">
+                          PREDICTION WEB3
+                        </span>
+                        
+                        <div className="flex flex-col items-end gap-1 select-none">
+                          <span className="text-[10px] font-bold text-slate-400">
+                            Volume : {m.volume.toLocaleString('fr-FR')} $
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Title/Question */}
+                      <h3 className="text-sm font-extrabold text-white leading-snug mb-4">
+                        {m.question}
+                      </h3>
+
+                      {/* Comparison / Outcomes & Prices */}
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        {/* Outcome A */}
+                        <div className="bg-[#191F2E]/60 border border-[#2A3245] rounded-xl p-3 flex flex-col justify-between h-14">
+                          <span className="text-[10px] font-extrabold text-slate-400 truncate uppercase tracking-wider">{m.outcomes[0]}</span>
+                          <div className="flex justify-between items-baseline mt-1">
+                            <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[0]} $</span>
+                            <span className="text-base font-mono font-extrabold text-white">{m.probabilities[0]}%</span>
+                          </div>
+                        </div>
+
+                        {/* Outcome B */}
+                        <div className="bg-[#191F2E]/60 border border-[#2A3245] rounded-xl p-3 flex flex-col justify-between h-14">
+                          <span className="text-[10px] font-extrabold text-slate-400 truncate uppercase tracking-wider">{m.outcomes[1]}</span>
+                          <div className="flex justify-between items-baseline mt-1">
+                            <span className="text-xs text-purple-400 font-extrabold">Jeton : {m.prices[1]} $</span>
+                            <span className="text-base font-mono font-extrabold text-white">{m.probabilities[1]}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Edge Indicator & Action */}
+                      <div className="flex items-center justify-between border-t border-[#2A3245]/50 pt-4 mt-1 gap-4">
+                        {hasEdge ? (
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">
+                              <span>STATS ELO vs POLYMARKET</span>
+                            </div>
+                            <span className="text-xs font-bold text-white mt-1">
+                              Notre ELO : <span className="text-[#00E676]">{m.ourProbA}%</span> | Marché : <span className="text-purple-400">{m.probabilities[0]}%</span>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 font-bold tracking-wide italic">
+                            Match non couplé (tournoi mineur / ITF)
+                          </span>
+                        )}
+
+                        {hasEdge ? (
+                          <Link 
+                            href={`/match/${m.matchedMatchId}`}
+                            className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 ${
+                              isHighEdge 
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:scale-105 active:scale-95 font-black' 
+                                : 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.2)] hover:scale-105 active:scale-95'
+                            }`}
+                          >
+                            <span>
+                              {m.edge > 0 
+                                ? `🔥 VALUE BET +${m.edge}%` 
+                                : m.edge < 0 
+                                  ? `⚖️ VALUE BET OPPOSÉ +${Math.abs(m.edge)}%`
+                                  : '⚖️ ÉQUILIBRE STATS'
+                              }
+                            </span>
+                          </Link>
+                        ) : (
+                          <a 
+                            href={`https://polymarket.com/event/${m.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-[#1A2233] text-purple-400 border border-purple-500/20 hover:border-purple-500/5 hover:bg-purple-500/5 px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all shrink-0"
+                          >
+                            Parier sur Polymarket ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="bg-[#151A26] border border-[#2A3245] rounded-xl p-8 flex flex-col items-center justify-center text-center gap-3">
+              <Star className="text-purple-400 animate-pulse" size={24} />
+              <p className="text-sm font-semibold text-white">Aucun marché Polymarket actif</p>
+              <p className="text-xs text-slate-400 max-w-xs">Aucun marché de prédiction tennis actif n'a pu être récupéré de Polymarket à cet instant.</p>
+            </div>
+          )
         ) : (
-          <div className="bg-[#151A26] border border-[#2A3245] rounded-xl p-8 flex flex-col items-center justify-center text-center gap-3">
-            {showOnlyFavorites ? (
-              <>
-                <Star className="text-amber-400 animate-pulse fill-amber-400/20" size={24} />
-                <p className="text-sm font-semibold text-white">Aucun favori pour le moment</p>
-                <p className="text-xs text-slate-400 max-w-xs">Cliquez sur l'étoile dorée d'un match pour l'ajouter à vos favoris et le suivre en temps réel.</p>
-              </>
-            ) : activeTab === 'live' ? (
-              <>
-                <Play className="text-[#00E676] animate-pulse" size={24} />
-                <p className="text-sm font-semibold text-white">Aucun match en direct correspondant</p>
-                <p className="text-xs text-slate-400 max-w-xs">Modifiez votre recherche ou sélectionnez "Tous les tournois" pour voir s'il y a d'autres matchs en cours.</p>
-              </>
-            ) : activeTab === 'upcoming' ? (
-              <>
-                <Zap className="text-sky-400" size={24} />
-                <p className="text-sm font-semibold text-white">Aucun match prévu correspondant</p>
-                <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "À Venir".</p>
-              </>
-            ) : (
-              <>
-                <Trophy className="text-rose-400" size={24} />
-                <p className="text-sm font-semibold text-white">Aucun match terminé correspondant</p>
-                <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "Terminés".</p>
-              </>
-            )}
-          </div>
+          !isConnected && matches.length === 0 ? (
+            <div className="text-center py-10 text-slate-500">
+              Connexion au serveur de statistiques...
+            </div>
+          ) : sortedMatches.length > 0 ? (
+            sortedMatches.map((match) => (
+              <MatchCard 
+                key={match.id} 
+                match={match} 
+                isFavorited={favorites.includes(match.id)}
+                onToggleFavorite={onToggleFavorite}
+              />
+            ))
+          ) : (
+            <div className="bg-[#151A26] border border-[#2A3245] rounded-xl p-8 flex flex-col items-center justify-center text-center gap-3">
+              {showOnlyFavorites ? (
+                <>
+                  <Star className="text-amber-400 animate-pulse fill-amber-400/20" size={24} />
+                  <p className="text-sm font-semibold text-white">Aucun favori pour le moment</p>
+                  <p className="text-xs text-slate-400 max-w-xs">Cliquez sur l'étoile dorée d'un match pour l'ajouter à vos favoris et le suivre en temps réel.</p>
+                </>
+              ) : activeTab === 'live' ? (
+                <>
+                  <Play className="text-[#00E676] animate-pulse" size={24} />
+                  <p className="text-sm font-semibold text-white">Aucun match en direct correspondant</p>
+                  <p className="text-xs text-slate-400 max-w-xs">Modifiez votre recherche ou sélectionnez "Tous les tournois" pour voir s'il y a d'autres matchs en cours.</p>
+                </>
+              ) : activeTab === 'upcoming' ? (
+                <>
+                  <Zap className="text-sky-400" size={24} />
+                  <p className="text-sm font-semibold text-white">Aucun match prévu correspondant</p>
+                  <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "À Venir".</p>
+                </>
+              ) : (
+                <>
+                  <Trophy className="text-rose-400" size={24} />
+                  <p className="text-sm font-semibold text-white">Aucun match terminé correspondant</p>
+                  <p className="text-xs text-slate-400 max-w-xs">Aucun match ne correspond aux filtres appliqués dans l'onglet "Terminés".</p>
+                </>
+              )}
+            </div>
+          )
         )}
       </div>
     </div>

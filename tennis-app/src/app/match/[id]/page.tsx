@@ -32,6 +32,8 @@ interface StatsData {
   averagesA: { avgAces: number; avgDf: number; avg1stServ: number; totalMatches: number };
   averagesB: { avgAces: number; avgDf: number; avg1stServ: number; totalMatches: number };
   surface: string;
+  eloA?: { name: string; general: number; hard: number; clay: number; grass: number };
+  eloB?: { name: string; general: number; hard: number; clay: number; grass: number };
 }
 
 function FormBadge({ won }: { won: boolean }) {
@@ -60,7 +62,7 @@ function computeStatsProbability(stats: StatsData, defaultA: number) {
   let valH2H = 0.5;
   const totalH2H = stats.h2h.winsA + stats.h2h.winsB;
   if (totalH2H > 0) {
-    weightH2H = 0.30;
+    weightH2H = 0.15; // 15% weight
     valH2H = stats.h2h.winsA / totalH2H;
   }
 
@@ -69,7 +71,7 @@ function computeStatsProbability(stats: StatsData, defaultA: number) {
   const winsFormA = stats.formA.filter(m => m.won).length;
   const winsFormB = stats.formB.filter(m => m.won).length;
   if (stats.formA.length > 0 || stats.formB.length > 0) {
-    weightForm = 0.35;
+    weightForm = 0.25; // 25% weight
     const pctA = stats.formA.length > 0 ? winsFormA / stats.formA.length : 0.5;
     const pctB = stats.formB.length > 0 ? winsFormB / stats.formB.length : 0.5;
     const sum = pctA + pctB;
@@ -79,27 +81,51 @@ function computeStatsProbability(stats: StatsData, defaultA: number) {
   let weightSurface = 0;
   let valSurface = 0.5;
   if (stats.surfaceA && stats.surfaceB) {
-    weightSurface = 0.35;
+    weightSurface = 0.30; // 30% weight
     const pctA = stats.surfaceA.pct / 100;
     const pctB = stats.surfaceB.pct / 100;
     const sum = pctA + pctB;
     valSurface = sum > 0 ? pctA / sum : 0.5;
   } else if (stats.surfaceA) {
-    weightSurface = 0.20;
+    weightSurface = 0.15;
     valSurface = stats.surfaceA.pct / 100;
   } else if (stats.surfaceB) {
-    weightSurface = 0.20;
+    weightSurface = 0.15;
     valSurface = 1 - (stats.surfaceB.pct / 100);
   }
 
-  const totalWeight = weightH2H + weightForm + weightSurface;
+  // 4. ELO Ratings Factor (General + Surface specific)
+  let weightElo = 0;
+  let valElo = 0.5;
+  if (stats.eloA && stats.eloB) {
+    weightElo = 0.30; // 30% weight
+    
+    // Compute general Elo probability
+    const probGeneralA = 1.0 / (1.0 + Math.pow(10, (stats.eloB.general - stats.eloA.general) / 400.0));
+    
+    // Compute surface Elo probability
+    const getSurfElo = (eloObj: any) => {
+      const s = stats.surface.toLowerCase();
+      if (s.includes('clay')) return eloObj.clay;
+      if (s.includes('grass')) return eloObj.grass;
+      return eloObj.hard;
+    };
+    const eloSurfA = getSurfElo(stats.eloA);
+    const eloSurfB = getSurfElo(stats.eloB);
+    const probSurfaceA = 1.0 / (1.0 + Math.pow(10, (eloSurfB - eloSurfA) / 400.0));
+    
+    // Combined Elo expected win rate (70% Surface ELO, 30% General ELO)
+    valElo = 0.7 * probSurfaceA + 0.3 * probGeneralA;
+  }
+
+  const totalWeight = weightH2H + weightForm + weightSurface + weightElo;
   if (totalWeight === 0) {
     return { probA: defaultA, probB: 100 - defaultA, isFallback: true };
   }
 
-  const rawProbA = (weightH2H * valH2H + weightForm * valForm + weightSurface * valSurface) / totalWeight;
-  const scale = 0.5; // pull slightly towards 50% for realistic sports predictions
-  const balancedProbA = rawProbA * scale + 0.5 * (1 - scale);
+  const rawProbA = (weightH2H * valH2H + weightForm * valForm + weightSurface * valSurface + weightElo * valElo) / totalWeight;
+  const scale = 0.6; // pull slightly towards 50% for realistic sports predictions
+  const balancedProbA = rawProbA * scale + 0.5 * (1.0 - scale);
   const finalProbA = Math.round(balancedProbA * 100);
   return { probA: finalProbA, probB: 100 - finalProbA, isFallback: false };
 }
@@ -112,6 +138,7 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [polymarketMarket, setPolymarketMarket] = useState<any | null>(null);
 
   useEffect(() => {
     try {
@@ -218,6 +245,26 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
           adviceList.push(`🎯 Canonnier : ${match.playerB.name} sert en moyenne ${stats.averagesB.avgAces} aces/match. Très solide sur ses engagements.`);
         }
       }
+
+      // 5. Analyse ELO (Force Réelle)
+      if (stats.eloA && stats.eloB) {
+        const getSurfElo = (eloObj: any) => {
+          const s = surface.toLowerCase();
+          if (s.includes('clay')) return eloObj.clay;
+          if (s.includes('grass')) return eloObj.grass;
+          return eloObj.hard;
+        };
+        const eloSurfA = getSurfElo(stats.eloA);
+        const eloSurfB = getSurfElo(stats.eloB);
+        const diffElo = Math.abs(eloSurfA - eloSurfB);
+        
+        if (diffElo > 80) {
+          const superior = eloSurfA > eloSurfB ? match.playerA.name : match.playerB.name;
+          adviceList.push(`📈 Force ELO Réelle : ${superior} a une supériorité ELO massive de +${Math.round(diffElo)} points sur ${surface}, indiquant un niveau de tennis bien supérieur sur cette surface.`);
+        } else if (diffElo < 30) {
+          adviceList.push(`⚖️ Niveau ELO Proche : Les deux joueurs ont un classement ELO extrêmement serré sur cette surface (écart de ${Math.round(diffElo)} pts). Duel très disputé à prévoir.`);
+        }
+      }
     }
 
     // 5. Conseils Live Betting en direct
@@ -277,6 +324,20 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
             if (statsRes.ok) {
               const statsData = await statsRes.json();
               setStats(statsData);
+            }
+
+            // Fetch Polymarket data and find a matching market
+            try {
+              const polyRes = await fetch('/api/polymarket');
+              if (polyRes.ok) {
+                const polyData = await polyRes.json();
+                const matchedPoly = polyData.markets?.find((m: any) => m.matchedMatchId === found.id);
+                if (matchedPoly) {
+                  setPolymarketMarket(matchedPoly);
+                }
+              }
+            } catch (e) {
+              console.error("Error fetching Polymarket for match:", e);
             }
           } else {
             setNotFound(true);
@@ -501,6 +562,90 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
           );
         })()}
 
+        {/* Section Web3 Polymarket en temps réel */}
+        <div className="bg-[#151A26] border border-[#2A3245] rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#2A3245] pb-3">
+            <div className="flex items-center gap-2">
+              <Star size={16} className="text-purple-400 animate-pulse fill-purple-400/20" />
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-200">Indicateurs de Marché Web3 (Polymarket)</h3>
+            </div>
+            {polymarketMarket && (
+              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
+                Volume : {polymarketMarket.volume.toLocaleString('fr-FR')} $
+              </span>
+            )}
+          </div>
+
+          {polymarketMarket ? (
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mb-1">Marché en cours sur Polymarket</p>
+                <p className="text-xs text-slate-300 font-bold leading-normal">{polymarketMarket.question}</p>
+              </div>
+
+              {/* Progress and probabilities */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-[10px] text-slate-400 font-bold tracking-wide">
+                  <span>{polymarketMarket.outcomes[0]} : {polymarketMarket.probabilities[0]}%</span>
+                  <span>{polymarketMarket.outcomes[1]} : {polymarketMarket.probabilities[1]}%</span>
+                </div>
+                <div className="h-2 bg-slate-950 p-[1px] rounded-full overflow-hidden flex gap-0.5 border border-[#2A3245]/20">
+                  <div className="bg-purple-600 rounded-l-full shadow-[0_0_8px_rgba(147,51,234,0.6)]" style={{ width: `${polymarketMarket.probabilities[0]}%` }}></div>
+                  <div className="bg-slate-700 rounded-r-full" style={{ width: `${polymarketMarket.probabilities[1]}%` }}></div>
+                </div>
+              </div>
+
+              {/* Comparison ELO vs Polymarket */}
+              <div className="bg-[#1A2233]/60 border border-[#2A3245]/40 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Calcul de l'écart (Edge)</span>
+                  {polymarketMarket.edge > 0 ? (
+                    <span className="text-[#00E676] bg-[#00E676]/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-[#00E676]/20">
+                      ⚡ VALUE BET DE +{polymarketMarket.edge}%
+                    </span>
+                  ) : polymarketMarket.edge < 0 ? (
+                    <span className="text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-amber-400/20">
+                      ⚖️ VALUE OPPOSÉE +{Math.abs(polymarketMarket.edge)}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider">
+                      ⚖️ MARCHÉ PARFAITEMENT ÉQUILIBRÉ
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                  {polymarketMarket.edge > 0 ? (
+                    <span>Notre modèle statistique estime les chances de <strong>{polymarketMarket.outcomes[0]}</strong> à <strong className="text-[#00E676]">{polymarketMarket.ourProbA}%</strong>, tandis que le marché décentralisé Polymarket le sous-évalue à <strong className="text-purple-400">{polymarketMarket.probabilities[0]}%</strong>. C'est une excellente value !</span>
+                  ) : polymarketMarket.edge < 0 ? (
+                    <span>Le marché Polymarket sur-évalue <strong>{polymarketMarket.outcomes[0]}</strong> à <strong className="text-purple-400">{polymarketMarket.probabilities[0]}%</strong> par rapport à notre estimation ELO de <strong className="text-[#00E676]">{polymarketMarket.ourProbA}%</strong>. La value statistique se situe sur <strong>{polymarketMarket.outcomes[1]}</strong>.</span>
+                  ) : (
+                    <span>Les cotes du marché décentralisé sont parfaitement alignées avec notre indicateur de probabilité ELO. Aucun avantage parieur significatif détecté.</span>
+                  )}
+                </p>
+              </div>
+
+              {/* Direct Polymarket Betting Button */}
+              <a 
+                href={`https://polymarket.com/event/${polymarketMarket.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(147,51,234,0.3)] hover:scale-[1.01] active:scale-95 cursor-pointer"
+              >
+                <span>Parier sur Polymarket en direct ↗</span>
+              </a>
+            </div>
+          ) : (
+            <div className="bg-[#1C202F]/40 border border-[#2A3245]/50 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-2">
+              <span className="text-slate-400 font-semibold text-xs leading-normal">
+                Aucun marché de prédiction actif pour ce match
+              </span>
+              <p className="text-[10px] text-slate-500 max-w-xs font-semibold leading-relaxed">
+                Ce match n'a pas encore de marché de prédiction actif sur Polymarket (fréquent pour les tournois mineurs / ITF). Nos cotes ELO ci-dessus restent 100% actives.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Live Match Statistics */}
         {match.is_live && match.live_stats?.stats && (
           <div className="bg-[#151A26] border border-[#00E676]/30 shadow-[0_0_15px_rgba(0,230,118,0.03)] rounded-2xl p-5 space-y-4">
@@ -595,6 +740,67 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
             <div className="text-center py-4"><div className="w-5 h-5 rounded-full border-2 border-[#00E676] border-t-transparent animate-spin mx-auto"></div></div>
           )}
         </div>
+
+        {/* Comparatif des Classements ELO (Force Réelle) */}
+        {stats && (stats.eloA && stats.eloB) && (
+          <div className="bg-[#151A26] border border-[#2A3245] rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <BarChart2 size={16} className="text-amber-400 animate-pulse" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-300">Classements ELO (Force Réelle)</h3>
+            </div>
+            
+            <div className="space-y-4 pt-1">
+              {/* ELO Général */}
+              <div>
+                <div className="flex justify-between text-xs mb-1.5 font-bold">
+                  <span className="text-slate-400 font-medium">ELO Général (Toutes Surfaces)</span>
+                  <div className="flex gap-4 font-mono">
+                    <span className={stats.eloA.general >= stats.eloB.general ? "text-amber-400 font-extrabold" : "text-slate-300"}>{Math.round(stats.eloA.general)}</span>
+                    <span className="text-slate-500">vs</span>
+                    <span className={stats.eloB.general >= stats.eloA.general ? "text-amber-400 font-extrabold" : "text-slate-300"}>{Math.round(stats.eloB.general)}</span>
+                  </div>
+                </div>
+                <div className="h-1.5 bg-[#1A2233] rounded-full overflow-hidden flex gap-0.5 border border-[#2A3245]/20">
+                  <div className="bg-amber-400 rounded-l-full" style={{ width: `${(stats.eloA.general / (stats.eloA.general + stats.eloB.general || 1)) * 100}%` }}></div>
+                  <div className="bg-slate-600 rounded-r-full" style={{ width: `${(stats.eloB.general / (stats.eloA.general + stats.eloB.general || 1)) * 100}%` }}></div>
+                </div>
+              </div>
+
+              {/* ELO sur la Surface */}
+              {(() => {
+                const getSurfaceEloVal = (eloObj: any) => {
+                  const s = surface.toLowerCase();
+                  if (s.includes('clay')) return eloObj.clay;
+                  if (s.includes('grass')) return eloObj.grass;
+                  return eloObj.hard;
+                };
+                const eloValA = getSurfaceEloVal(stats.eloA);
+                const eloValB = getSurfaceEloVal(stats.eloB);
+                
+                return (
+                  <div>
+                    <div className="flex justify-between text-xs mb-1.5 font-bold">
+                      <span className="text-slate-400 font-medium">ELO Spécifique (Sur {surface})</span>
+                      <div className="flex gap-4 font-mono">
+                        <span className={eloValA >= eloValB ? "text-[#00E676] font-extrabold" : "text-slate-300"}>{Math.round(eloValA)}</span>
+                        <span className="text-slate-500">vs</span>
+                        <span className={eloValB >= eloValA ? "text-[#00E676] font-extrabold" : "text-slate-300"}>{Math.round(eloValB)}</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-[#1A2233] rounded-full overflow-hidden flex gap-0.5 border border-[#2A3245]/20">
+                      <div className="bg-[#00E676] rounded-l-full shadow-[0_0_8px_#00E676]" style={{ width: `${(eloValA / (eloValA + eloValB || 1)) * 100}%` }}></div>
+                      <div className="bg-slate-600 rounded-r-full" style={{ width: `${(eloValB / (eloValA + eloValB || 1)) * 100}%` }}></div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            
+            <div className="text-[9px] text-slate-500 font-bold bg-[#1A2233] px-2.5 py-2 rounded-xl text-center border border-[#2A3245]/50 leading-relaxed font-mono">
+              💡 Le classement ELO calcule la force d'un joueur en fonction du niveau de ses adversaires battus. Contrairement à l'ATP, il reflète le niveau de jeu réel.
+            </div>
+          </div>
+        )}
 
         {/* Moyennes de jeu détaillées */}
         {stats && (stats.averagesA && stats.averagesB) && (
