@@ -1,6 +1,7 @@
-import React from 'react';
+'use client';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShieldCheck, Flame, Trophy, Activity, Target, Star } from 'lucide-react';
+import { ShieldCheck, Flame, Trophy, Activity, Target, Star, Bot, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MatchProps {
   match: {
@@ -24,6 +25,42 @@ interface MatchProps {
 }
 
 export function MatchCard({ match, isFavorited = false, onToggleFavorite }: MatchProps) {
+  const [isAiExpanded, setIsAiExpanded] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const toggleAiAnalysis = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isAiExpanded) {
+      setIsAiExpanded(false);
+      return;
+    }
+    
+    setIsAiExpanded(true);
+    if (aiAnalysis) return;
+    
+    setIsAiLoading(true);
+    try {
+      const res = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiAnalysis(data.advice);
+      } else {
+        setAiAnalysis("L'IA n'a pas pu générer d'analyse.");
+      }
+    } catch (err) {
+      setAiAnalysis("Erreur de connexion IA.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const isTargetA = match.targetPlayer === 'A';
   const hasHighEdge = match.edge > 20;
   const hasMediumEdge = match.edge > 12 && match.edge <= 20;
@@ -264,6 +301,37 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
             )}
           </button>
         </div>
+
+        {/* Section Accordéon IA (Directement sur la carte) */}
+        <div className="mt-4 border-t border-[#2A3245]/60 pt-3">
+          <button 
+            onClick={toggleAiAnalysis}
+            className="w-full flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-purple-400 bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2.5 transition-all group/ai"
+          >
+            <div className="flex items-center gap-2">
+              <Bot size={14} className="group-hover/ai:animate-pulse" />
+              <span>Analyse IA Rapide</span>
+            </div>
+            {isAiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          
+          {isAiExpanded && (
+            <div className="mt-3 bg-[#111723]/80 border border-purple-500/20 rounded-xl p-3 relative overflow-hidden text-left" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-400 to-indigo-500"></div>
+              {isAiLoading ? (
+                <div className="flex flex-col items-center justify-center py-4 gap-2">
+                  <Sparkles size={16} className="text-purple-400 animate-spin" />
+                  <span className="text-[9px] text-purple-300 font-mono uppercase tracking-widest animate-pulse">Génération en cours...</span>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-300 font-medium leading-relaxed pl-2 whitespace-pre-wrap">
+                  {aiAnalysis}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
     </Link>
   );
