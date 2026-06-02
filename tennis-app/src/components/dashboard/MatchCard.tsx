@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ShieldCheck, Flame, Trophy, Activity, Target, Star, Bot, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MatchProps {
@@ -25,6 +26,7 @@ interface MatchProps {
 }
 
 export function MatchCard({ match, isFavorited = false, onToggleFavorite }: MatchProps) {
+  const router = useRouter();
   const [isAiExpanded, setIsAiExpanded] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -87,7 +89,7 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
   );
 
   return (
-    <Link href={`/match/${match.id}`} className="block group">
+    <div onClick={() => router.push(`/match/${match.id}`)} className="block group cursor-pointer">
       <div className={`bg-gradient-to-br from-[#151A26] via-[#151A26] to-[#1D2436] border ${
         isFavorited 
           ? 'border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]' 
@@ -333,6 +335,6 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
         </div>
 
       </div>
-    </Link>
+    </div>
   );
 }

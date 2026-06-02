@@ -15,6 +15,8 @@ interface StatsData {
   surfaceB: { wins: number; losses: number; total: number; pct: number } | null;
   averagesA: { avgAces: number; avgDf: number; avg1stServ: number; totalMatches: number };
   averagesB: { avgAces: number; avgDf: number; avg1stServ: number; totalMatches: number };
+  eloA?: { general: number; clay: number; grass: number; hard: number };
+  eloB?: { general: number; clay: number; grass: number; hard: number };
   surface: string;
 }
 
@@ -100,52 +102,14 @@ function PlayerSearchInput({ label, value, onChange, placeholder }: PlayerSearch
 
 // Compute real statistical win probability
 function computeStatsProbability(stats: StatsData) {
-  let weightH2H = 0;
-  let valH2H = 0.5;
-  const totalH2H = stats.h2h.winsA + stats.h2h.winsB;
-  if (totalH2H > 0) {
-    weightH2H = 0.30;
-    valH2H = stats.h2h.winsA / totalH2H;
+  // Use exact Elo formula to match the dashboard and backend
+  if (stats.eloA && stats.eloB && stats.eloA.general && stats.eloB.general) {
+    const probA = 1.0 / (1.0 + Math.pow(10, (stats.eloB.general - stats.eloA.general) / 400.0));
+    const finalProbA = Math.round(probA * 100);
+    return { probA: finalProbA, probB: 100 - finalProbA, isFallback: false };
   }
-
-  let weightForm = 0;
-  let valForm = 0.5;
-  const winsFormA = stats.formA.filter(m => m.won).length;
-  const winsFormB = stats.formB.filter(m => m.won).length;
-  if (stats.formA.length > 0 || stats.formB.length > 0) {
-    weightForm = 0.35;
-    const pctA = stats.formA.length > 0 ? winsFormA / stats.formA.length : 0.5;
-    const pctB = stats.formB.length > 0 ? winsFormB / stats.formB.length : 0.5;
-    const sum = pctA + pctB;
-    valForm = sum > 0 ? pctA / sum : 0.5;
-  }
-
-  let weightSurface = 0;
-  let valSurface = 0.5;
-  if (stats.surfaceA && stats.surfaceB) {
-    weightSurface = 0.35;
-    const pctA = stats.surfaceA.pct / 100;
-    const pctB = stats.surfaceB.pct / 100;
-    const sum = pctA + pctB;
-    valSurface = sum > 0 ? pctA / sum : 0.5;
-  } else if (stats.surfaceA) {
-    weightSurface = 0.20;
-    valSurface = stats.surfaceA.pct / 100;
-  } else if (stats.surfaceB) {
-    weightSurface = 0.20;
-    valSurface = 1 - (stats.surfaceB.pct / 100);
-  }
-
-  const totalWeight = weightH2H + weightForm + weightSurface;
-  if (totalWeight === 0) {
-    return { probA: 50, probB: 50, isFallback: true };
-  }
-
-  const rawProbA = (weightH2H * valH2H + weightForm * valForm + weightSurface * valSurface) / totalWeight;
-  const scale = 0.5; // pull slightly towards 50% for realistic sports predictions
-  const balancedProbA = rawProbA * scale + 0.5 * (1 - scale);
-  const finalProbA = Math.round(balancedProbA * 100);
-  return { probA: finalProbA, probB: 100 - finalProbA, isFallback: false };
+  
+  return { probA: 50, probB: 50, isFallback: true };
 }
 
 export default function ComparePage() {

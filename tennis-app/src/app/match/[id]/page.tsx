@@ -397,9 +397,9 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
       </div>
     );
   }
-
   const surface = detectSurface(match.tournament);
-  const probData = stats ? computeStatsProbability(stats, match.playerA.prob) : { probA: match.playerA.prob, probB: match.playerB.prob, isFallback: true };
+  // We use the base ELO probability directly to avoid inconsistencies across tabs
+  const probData = { probA: match.playerA.prob, probB: match.playerB.prob, isFallback: !stats };
   const isTargetA = match.targetPlayer === 'A';
 
   return (
