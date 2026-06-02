@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Star, Activity, TrendingUp, Users, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Star, Activity, TrendingUp, Users, BarChart2, Bot, Sparkles } from 'lucide-react';
 
 interface MatchData {
   id: string;
@@ -139,6 +139,8 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
   const [notFound, setNotFound] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [polymarketMarket, setPolymarketMarket] = useState<any | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -165,6 +167,29 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
   };
 
   const isFavorited = favorites.includes(id);
+
+  const generateAiAnalysis = async () => {
+    if (!match) return;
+    setIsAiLoading(true);
+    setAiAnalysis(null);
+    try {
+      const res = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiAnalysis(data.advice);
+      } else {
+        setAiAnalysis("L'IA n'a pas pu générer d'analyse. Veuillez réessayer plus tard.");
+      }
+    } catch (e) {
+      setAiAnalysis("Erreur de connexion avec l'assistant IA.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // Algorithme d'Aide à la Décision pour les Paris Sportifs
   const getDecisionSupport = () => {
@@ -561,6 +586,47 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
             </div>
           );
         })()}
+
+        {/* Section Assistant IA OpenRouter */}
+        <div className="bg-[#151A26] border border-[#2A3245] rounded-2xl p-5 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+          <div className="flex items-center justify-between border-b border-[#2A3245] pb-3">
+            <div className="flex items-center gap-2">
+              <Bot size={16} className="text-purple-400" />
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-purple-400 drop-shadow-[0_0_6px_rgba(168,85,247,0.15)]">IA Experte de Paris</h3>
+            </div>
+            <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
+              OpenRouter AI
+            </span>
+          </div>
+
+          {!aiAnalysis && !isAiLoading ? (
+            <div className="flex flex-col items-center justify-center py-4 gap-3 text-center">
+              <p className="text-[10px] text-slate-400 font-semibold leading-relaxed max-w-xs">
+                Besoin d'un second avis ? Laissez notre modèle IA analyser les probabilités ELO et les dynamiques de marché pour trouver la vraie valeur de ce match.
+              </p>
+              <button 
+                onClick={generateAiAnalysis}
+                className="group relative px-4 py-2.5 bg-[#1A2233] border border-purple-500/30 hover:border-purple-400 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(168,85,247,0.1)] hover:shadow-[0_0_20px_rgba(168,85,247,0.2)] active:scale-95 cursor-pointer"
+              >
+                <Sparkles size={14} className="text-purple-400 group-hover:animate-spin" />
+                <span className="text-xs font-black uppercase tracking-wider text-purple-300">Générer l'Analyse IA</span>
+                <div className="absolute inset-0 rounded-xl bg-purple-500/5 group-hover:bg-purple-500/10 pointer-events-none transition-colors"></div>
+              </button>
+            </div>
+          ) : isAiLoading ? (
+            <div className="flex flex-col items-center justify-center py-6 gap-3">
+              <div className="w-6 h-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"></div>
+              <p className="text-[10px] text-purple-400/80 font-mono animate-pulse uppercase tracking-widest">Analyse en cours...</p>
+            </div>
+          ) : (
+            <div className="bg-[#1C202F]/60 border border-purple-500/20 rounded-xl p-4 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-400 to-indigo-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
+              <p className="text-xs text-slate-300 font-medium leading-relaxed pl-2 whitespace-pre-wrap">
+                {aiAnalysis}
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Section Web3 Polymarket en temps réel */}
         <div className="bg-[#151A26] border border-[#2D354B] rounded-2xl p-5 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">

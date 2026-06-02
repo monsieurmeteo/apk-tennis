@@ -12,6 +12,8 @@ interface MatchProps {
     playerB: { name: string; rank: number; prob: number };
     edge: number;
     targetPlayer: string;
+    oddsA?: number | null;
+    oddsB?: number | null;
     live_stats?: {
       serving_player?: string;
       stats?: Record<string, { home: string; away: string }> | null;
@@ -26,6 +28,17 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
   const hasHighEdge = match.edge > 20;
   const hasMediumEdge = match.edge > 12 && match.edge <= 20;
 
+  // Calcul du Value Edge vs Bookmaker (formule: probabilité ELO - probabilité impliquée)
+  const bookieProbA = match.oddsA ? 100 / match.oddsA : 0;
+  const bookieProbB = match.oddsB ? 100 / match.oddsB : 0;
+  
+  const edgeBookieA = match.oddsA ? Math.round(match.playerA.prob - bookieProbA) : 0;
+  const edgeBookieB = match.oddsB ? Math.round(match.playerB.prob - bookieProbB) : 0;
+  
+  const hasBookieValue = (match.oddsA && edgeBookieA >= 5) || (match.oddsB && edgeBookieB >= 5);
+  const targetEdgeBookie = edgeBookieA >= edgeBookieB ? edgeBookieA : edgeBookieB;
+  const targetBookiePlayer = edgeBookieA >= edgeBookieB ? match.playerA.name.split(' ').pop() : match.playerB.name.split(' ').pop();
+
   const isLive = match.is_live;
   const rawScore = match.score_str;
   const formattedScore = rawScore.replace(/,/g, '  | ');
@@ -38,11 +51,23 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
 
   return (
     <Link href={`/match/${match.id}`} className="block group">
-      <div className={`bg-gradient-to-br from-[#151A26] via-[#151A26] to-[#1D2436] border ${isFavorited ? 'border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : hasHighEdge ? 'border-amber-500/40 hover:border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.05)]' : hasMediumEdge ? 'border-[#00E676]/40 hover:border-[#00E676]' : 'border-[#2A3245] hover:border-slate-500'} rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform group-hover:scale-[1.015] group-hover:shadow-[0_15px_30px_rgba(0,0,0,0.3)]`}>
+      <div className={`bg-gradient-to-br from-[#151A26] via-[#151A26] to-[#1D2436] border ${
+        isFavorited 
+          ? 'border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]' 
+          : hasBookieValue 
+            ? 'border-[#00E676] shadow-[0_0_15px_rgba(0,230,118,0.18)] hover:border-[#00FF87]' 
+            : hasHighEdge 
+              ? 'border-amber-500/40 hover:border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.05)]' 
+              : hasMediumEdge 
+                ? 'border-[#00E676]/40 hover:border-[#00E676]' 
+                : 'border-[#2A3245] hover:border-slate-500'
+      } rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform group-hover:scale-[1.015] group-hover:shadow-[0_15px_30px_rgba(0,0,0,0.3)]`}>
         
         {/* Glow de fond subtil pour attirer l'œil */}
         {isFavorited ? (
           <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-amber-400/10 blur-3xl pointer-events-none transition-all duration-500 group-hover:bg-amber-400/15"></div>
+        ) : hasBookieValue ? (
+          <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-[#00E676]/12 blur-3xl pointer-events-none transition-all duration-500 group-hover:bg-[#00E676]/20"></div>
         ) : hasHighEdge ? (
           <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-amber-500/10 blur-3xl pointer-events-none transition-all duration-500 group-hover:bg-amber-500/15"></div>
         ) : hasMediumEdge ? (
@@ -54,6 +79,11 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
           <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[10px] font-extrabold px-3.5 py-1 rounded-bl-xl shadow-[0_4px_12px_rgba(245,158,11,0.4)] flex items-center gap-1 uppercase tracking-wider z-10">
             <Star size={11} className="fill-slate-950 animate-pulse" />
             MATCH SUIVI (ÉPINGLÉ)
+          </div>
+        ) : hasBookieValue ? (
+          <div className="absolute top-0 right-0 bg-gradient-to-r from-[#00E676] via-[#00FF87] to-emerald-500 text-slate-950 text-[10px] font-extrabold px-3.5 py-1 rounded-bl-xl shadow-[0_4px_12px_rgba(0,230,118,0.4)] flex items-center gap-1 uppercase tracking-wider z-10 animate-pulse">
+            <Flame size={12} className="animate-bounce" />
+            VALUE BOOKIE : +{targetEdgeBookie}% ({targetBookiePlayer})
           </div>
         ) : hasHighEdge ? (
           <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-slate-950 text-[10px] font-extrabold px-3.5 py-1 rounded-bl-xl shadow-[0_4px_12px_rgba(245,158,11,0.4)] flex items-center gap-1 uppercase tracking-wider z-10">
@@ -175,6 +205,36 @@ export function MatchCard({ match, isFavorited = false, onToggleFavorite }: Matc
             ></div>
           </div>
         </div>
+
+        {/* Bookmaker Odds & Value Bet */}
+        {(match.oddsA || match.oddsB) && (
+          <div className="mb-4 bg-[#1A2233]/45 border border-[#2D354B] rounded-xl py-2 px-3 flex items-center justify-between gap-2 text-xs">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1 select-none">
+              💰 Cotes Bookmaker
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-slate-300 font-bold bg-[#111723]/95 px-2 py-0.5 rounded border border-[#2A3245]">
+                {match.playerA.name.split(' ').pop()} : <span className="text-[#00E676] font-extrabold">{match.oddsA?.toFixed(2)}</span>
+              </span>
+              <span className="font-mono text-slate-300 font-bold bg-[#111723]/95 px-2 py-0.5 rounded border border-[#2A3245]">
+                {match.playerB.name.split(' ').pop()} : <span className="text-[#00E676] font-extrabold">{match.oddsB?.toFixed(2)}</span>
+              </span>
+            </div>
+            {edgeBookieA >= 5 ? (
+              <span className="text-[#00E676] font-black uppercase text-[9px] tracking-wider animate-pulse flex items-center gap-0.5">
+                ⚡ VALUE : +{edgeBookieA}%
+              </span>
+            ) : edgeBookieB >= 5 ? (
+              <span className="text-[#00E676] font-black uppercase text-[9px] tracking-wider animate-pulse flex items-center gap-0.5">
+                ⚡ VALUE : +{edgeBookieB}%
+              </span>
+            ) : (
+              <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                ⚖️ ÉQUILIBRE
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Boutons de Probabilité Interactifs */}
         <div className="flex gap-2.5">

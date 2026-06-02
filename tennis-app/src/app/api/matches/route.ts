@@ -35,6 +35,46 @@ function getDemoMatches() {
 
 export const revalidate = 0;
 
+function matchPlayerWithOdds(oddsName: string, dbName: string): boolean {
+  if (!oddsName || !dbName) return false;
+  
+  // Clean names (lowercase, remove seeds like (4) or qualifiers)
+  const cleanOdds = oddsName.toLowerCase().replace(/\s*\(\d+\)\s*/g, '').replace(/\s*\(q\)\s*/g, '').trim();
+  const cleanDb = dbName.toLowerCase().replace(/\s*\(\d+\)\s*/g, '').replace(/\s*\(q\)\s*/g, '').trim();
+  
+  if (cleanOdds === cleanDb) return true;
+  
+  // Split oddsName (usually "Lastname F." or "Lastname F. M.")
+  const oddsParts = cleanOdds.split(' ');
+  if (oddsParts.length === 0) return false;
+  
+  const oddsLastName = oddsParts[0].replace(/\./g, '');
+  const oddsInitial = oddsParts[1] ? oddsParts[1].charAt(0) : '';
+  
+  // Split dbName (usually "Firstname Lastname" or "Firstname Middle Lastname")
+  const dbParts = cleanDb.split(' ');
+  if (dbParts.length === 0) return false;
+  
+  const dbLastName = dbParts[dbParts.length - 1];
+  const dbFirst = dbParts[0];
+  const dbInitial = dbFirst.charAt(0);
+  
+  // Check if last names are identical
+  if (oddsLastName.length > 2 && dbLastName.length > 2 && oddsLastName === dbLastName) {
+    if (oddsInitial && dbInitial) {
+      return oddsInitial === dbInitial;
+    }
+    return true;
+  }
+  
+  // Alternately check if one contains the other
+  if (cleanOdds.includes(cleanDb) || cleanDb.includes(cleanOdds)) {
+    return true;
+  }
+  
+  return false;
+}
+
 export async function GET() {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -48,6 +88,7 @@ export async function GET() {
       // Ignorer les erreurs de fetch en arrière-plan
     }
 
+    // 1. Fetch matches from Supabase
     const { data, error } = await supabase
       .from('tennis_matches')
       .select('*')
@@ -60,7 +101,21 @@ export async function GET() {
       return NextResponse.json({ matches: getDemoMatches(), source: 'demo' });
     }
 
-    // Remap Supabase columns -> frontend format
+    // 2. Fetch public bookmaker odds from Mriganka-codes/tennis_data
+    let oddsList: any[] = [];
+    try {
+      const oddsRes = await fetch('https://raw.githubusercontent.com/Mriganka-codes/tennis_data/main/matches.json', {
+        next: { revalidate: 3600 } // Cache odds for 1 hour
+      });
+      if (oddsRes.ok) {
+        const oddsData = await oddsRes.json();
+        oddsList = oddsData.matches || [];
+      }
+    } catch (err) {
+      console.error("Erreur de récupération des cotes GitHub:", err);
+    }
+
+    // 3. Remap Supabase columns -> frontend format & inject bookmaker cotes
     const matches = data.map((row: any) => {
       let tournamentName = row.tournament || '';
       let liveStats = null;
@@ -75,6 +130,24 @@ export async function GET() {
         }
       }
 
+      // Tenter d'associer des cotes de bookmakers via notre fuzzy matching
+      let oddsA: number | null = null;
+      let oddsB: number | null = null;
+      
+      if (oddsList.length > 0) {
+        const matchedOdds = oddsList.find(o => {
+          const matchNormal = matchPlayerWithOdds(o.player1, row.player_a_name) && matchPlayerWithOdds(o.player2, row.player_b_name);
+          const matchInverted = matchPlayerWithOdds(o.player1, row.player_b_name) && matchPlayerWithOdds(o.player2, row.player_a_name);
+          return matchNormal || matchInverted;
+        });
+        
+        if (matchedOdds) {
+          const isNormalOrder = matchPlayerWithOdds(matchedOdds.player1, row.player_a_name);
+          oddsA = isNormalOrder ? matchedOdds.odds1 : matchedOdds.odds2;
+          oddsB = isNormalOrder ? matchedOdds.odds2 : matchedOdds.odds1;
+        }
+      }
+
       return {
         id: row.id,
         tournament: tournamentName,
@@ -84,7 +157,9 @@ export async function GET() {
         playerB: { name: row.player_b_name, rank: row.player_b_rank, prob: row.player_b_prob },
         edge: row.edge,
         targetPlayer: row.target_player,
-        live_stats: liveStats
+        live_stats: liveStats,
+        oddsA,
+        oddsB
       };
     });
 
