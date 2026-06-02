@@ -595,32 +595,16 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
                 </div>
               </div>
 
-              {/* Comparison ELO vs Polymarket */}
+              {/* Consensus de la foule description */}
               <div className="bg-[#1A2233]/60 border border-[#2A3245]/40 rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Calcul de l'écart (Edge)</span>
-                  {polymarketMarket.edge > 0 ? (
-                    <span className="text-[#00E676] bg-[#00E676]/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-[#00E676]/20">
-                      ⚡ VALUE BET DE +{polymarketMarket.edge}%
-                    </span>
-                  ) : polymarketMarket.edge < 0 ? (
-                    <span className="text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-amber-400/20">
-                      ⚖️ VALUE OPPOSÉE +{Math.abs(polymarketMarket.edge)}%
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider">
-                      ⚖️ MARCHÉ PARFAITEMENT ÉQUILIBRÉ
-                    </span>
-                  )}
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Analyse du Marché Web3</span>
+                  <span className="text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded font-mono font-extrabold text-[10px] tracking-wider border border-purple-500/20">
+                    🏆 CROWD FAVORITE
+                  </span>
                 </div>
                 <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                  {polymarketMarket.edge > 0 ? (
-                    <span>Notre modèle statistique estime les chances de <strong>{polymarketMarket.outcomes[0]}</strong> à <strong className="text-[#00E676]">{polymarketMarket.ourProbA}%</strong>, tandis que le marché décentralisé Polymarket le sous-évalue à <strong className="text-purple-400">{polymarketMarket.probabilities[0]}%</strong>. C'est une excellente value !</span>
-                  ) : polymarketMarket.edge < 0 ? (
-                    <span>Le marché Polymarket sur-évalue <strong>{polymarketMarket.outcomes[0]}</strong> à <strong className="text-purple-400">{polymarketMarket.probabilities[0]}%</strong> par rapport à notre estimation ELO de <strong className="text-[#00E676]">{polymarketMarket.ourProbA}%</strong>. La value statistique se situe sur <strong>{polymarketMarket.outcomes[1]}</strong>.</span>
-                  ) : (
-                    <span>Les cotes du marché décentralisé sont parfaitement alignées avec notre indicateur de probabilité ELO. Aucun avantage parieur significatif détecté.</span>
-                  )}
+                  Le consensus actuel du marché de prédiction décentralisé Polymarket désigne <strong>{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.outcomes[0] : polymarketMarket.outcomes[1]}</strong> comme le gagnant prévu de cette rencontre avec une probabilité implicite de <strong>{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]}%</strong> (jeton de favori négocié à 0.{polymarketMarket.probabilities[0] > polymarketMarket.probabilities[1] ? polymarketMarket.probabilities[0] : polymarketMarket.probabilities[1]} $).
                 </p>
               </div>
 
@@ -631,7 +615,7 @@ export default function MatchDetails({ params }: { params: Promise<{ id: string 
                 rel="noopener noreferrer"
                 className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_4px_12px_rgba(147,51,234,0.3)] hover:scale-[1.01] active:scale-95 cursor-pointer"
               >
-                <span>Parier sur Polymarket en direct ↗</span>
+                <span>Parier sur le favori sur Polymarket ↗</span>
               </a>
             </div>
           ) : (

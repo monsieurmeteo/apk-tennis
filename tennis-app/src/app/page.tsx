@@ -374,6 +374,21 @@ export default function Dashboard() {
             </div>
           ) : polyMarkets.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
+              <style>{`
+                @keyframes poly-glow-pulse {
+                  0%, 100% {
+                    box-shadow: 0 0 4px var(--glow-color, rgba(168, 85, 247, 0.35)), inset 0 1px 3px rgba(168, 85, 247, 0.05);
+                    border-color: rgba(168, 85, 247, 0.3);
+                  }
+                  50% {
+                    box-shadow: 0 0 16px var(--glow-color, rgba(168, 85, 247, 0.75)), inset 0 1px 3px rgba(168, 85, 247, 0.15);
+                    border-color: rgba(168, 85, 247, 0.85);
+                  }
+                }
+                .animate-poly-favorite {
+                  animation: poly-glow-pulse var(--pulse-duration, 2s) infinite ease-in-out;
+                }
+              `}</style>
               {polyMarkets
                 .filter(m => {
                   const q = searchQuery.toLowerCase().trim();
@@ -384,25 +399,25 @@ export default function Dashboard() {
                     (m.outcomes[1] || '').toLowerCase().includes(q);
                 })
                 .map((m) => {
-                  const hasEdge = m.matchedMatchId !== null;
-                  const absEdge = Math.abs(m.edge);
-                  const isHighEdge = hasEdge && absEdge >= 10;
+                  // Crowd-sourced favorite from Polymarket
+                  const isFavoriteA = m.probabilities[0] > m.probabilities[1];
+                  const isFavoriteB = m.probabilities[1] > m.probabilities[0];
                   
-                  // Calcul du gagnant ELO prévu et de sa probabilité
-                  const eloWinner = hasEdge 
-                    ? m.ourProbA > 50 ? m.outcomes[0] : m.outcomes[1]
-                    : null;
-                  const eloWinnerProb = hasEdge
-                    ? m.ourProbA > 50 ? m.ourProbA : m.ourProbB
-                    : null;
+                  const polyFavorite = isFavoriteA ? m.outcomes[0] : m.outcomes[1];
+                  const polyFavoriteProb = isFavoriteA ? m.probabilities[0] : m.probabilities[1];
                   
-                  const isWinnerA = eloWinner === m.outcomes[0];
-                  const isWinnerB = eloWinner === m.outcomes[1];
+                  // Blinking animation parameters based on transaction volume
+                  const pulseDuration = m.volume >= 150000 ? '0.8s' : m.volume >= 50000 ? '1.8s' : '3s';
+                  const glowColor = m.volume >= 150000 
+                    ? 'rgba(168, 85, 247, 0.85)' 
+                    : m.volume >= 50000 
+                      ? 'rgba(168, 85, 247, 0.55)' 
+                      : 'rgba(168, 85, 247, 0.3)';
                   
                   return (
                     <div 
                       key={m.id} 
-                      className={`bg-gradient-to-br from-[#151A26] to-[#1E1933] border ${hasEdge ? isHighEdge ? 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'border-purple-500/50 hover:border-purple-400 shadow-[0_0_12px_rgba(147,51,234,0.05)]' : 'border-[#2A3245] hover:border-purple-500/30'} rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01]`}
+                      className={`bg-gradient-to-br from-[#151A26] to-[#1E1933] border border-purple-500/30 hover:border-purple-400 shadow-[0_0_12px_rgba(147,51,234,0.04)] hover:shadow-[0_0_20px_rgba(147,51,234,0.08)] rounded-2xl p-5 relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01]`}
                     >
                       {/* Top Badges */}
                       <div className="flex justify-between items-start mb-3 gap-2">
@@ -410,11 +425,9 @@ export default function Dashboard() {
                           <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider shrink-0">
                             PREDICTION WEB3
                           </span>
-                          {eloWinner && (
-                            <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20 uppercase tracking-wider shrink-0 flex items-center gap-0.5 shadow-[0_0_8px_rgba(0,230,118,0.15)]">
-                              🏆 PRÉVU : {eloWinner} ({eloWinnerProb}%)
-                            </span>
-                          )}
+                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-[#D8B4FE] border border-purple-500/30 uppercase tracking-wider shrink-0 flex items-center gap-0.5 shadow-[0_0_8px_rgba(168,85,247,0.15)] animate-pulse">
+                            🏆 GAGNANT PRÉVU : {polyFavorite} ({polyFavoriteProb}%)
+                          </span>
                         </div>
                         
                         <div className="flex flex-col items-end gap-1 select-none">
@@ -432,9 +445,19 @@ export default function Dashboard() {
                       {/* Comparison / Outcomes & Prices */}
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         {/* Outcome A */}
-                        <div className={`bg-[#191F2E]/60 border ${hasEdge && isWinnerA ? 'border-[#00E676]/60 shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' : 'border-[#2A3245]'} rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200`}>
-                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${hasEdge && isWinnerA ? 'text-[#00E676]' : 'text-slate-400'}`}>
-                            {hasEdge && isWinnerA && <span className="text-amber-400 animate-pulse">👑</span>}
+                        <div 
+                          className={`bg-[#191F2E]/60 border rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200 ${
+                            isFavoriteA 
+                              ? 'animate-poly-favorite shadow-[inset_0_1px_5px_rgba(168,85,247,0.05)]' 
+                              : 'border-[#2A3245]'
+                          }`}
+                          style={isFavoriteA ? {
+                            '--pulse-duration': pulseDuration,
+                            '--glow-color': glowColor
+                          } as React.CSSProperties : undefined}
+                        >
+                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${isFavoriteA ? 'text-purple-400' : 'text-slate-400'}`}>
+                            {isFavoriteA && <span className="text-amber-400 animate-bounce">👑</span>}
                             {m.outcomes[0]}
                           </span>
                           <div className="flex justify-between items-baseline mt-1">
@@ -444,9 +467,19 @@ export default function Dashboard() {
                         </div>
 
                         {/* Outcome B */}
-                        <div className={`bg-[#191F2E]/60 border ${hasEdge && isWinnerB ? 'border-[#00E676]/60 shadow-[inset_0_1px_5px_rgba(0,230,118,0.05)]' : 'border-[#2A3245]'} rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200`}>
-                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${hasEdge && isWinnerB ? 'text-[#00E676]' : 'text-slate-400'}`}>
-                            {hasEdge && isWinnerB && <span className="text-amber-400 animate-pulse">👑</span>}
+                        <div 
+                          className={`bg-[#191F2E]/60 border rounded-xl p-3 flex flex-col justify-between h-14 transition-all duration-200 ${
+                            isFavoriteB 
+                              ? 'animate-poly-favorite shadow-[inset_0_1px_5px_rgba(168,85,247,0.05)]' 
+                              : 'border-[#2A3245]'
+                          }`}
+                          style={isFavoriteB ? {
+                            '--pulse-duration': pulseDuration,
+                            '--glow-color': glowColor
+                          } as React.CSSProperties : undefined}
+                        >
+                          <span className={`text-[10px] font-extrabold truncate uppercase tracking-wider flex items-center gap-1 ${isFavoriteB ? 'text-purple-400' : 'text-slate-400'}`}>
+                            {isFavoriteB && <span className="text-amber-400 animate-bounce">👑</span>}
                             {m.outcomes[1]}
                           </span>
                           <div className="flex justify-between items-baseline mt-1">
@@ -456,51 +489,25 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* Edge Indicator & Action */}
+                      {/* Consensus Indicator & Action */}
                       <div className="flex items-center justify-between border-t border-[#2A3245]/50 pt-4 mt-1 gap-4">
-                        {hasEdge ? (
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">
-                              <span>STATS ELO vs POLYMARKET</span>
-                            </div>
-                            <span className="text-xs font-bold text-white mt-1">
-                              Notre ELO : <span className="text-[#00E676]">{m.ourProbA}%</span> | Marché : <span className="text-purple-400">{m.probabilities[0]}%</span>
-                            </span>
+                        <div className="flex flex-col">
+                          <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">
+                            INDICE DE CONFIANCE MARCHÉ
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 font-bold tracking-wide italic">
-                            Match non couplé (tournoi mineur / ITF)
+                          <span className="text-xs font-bold text-slate-300 mt-1">
+                            Consensus foule : <span className="text-purple-400 font-black">{polyFavoriteProb}%</span> en faveur de {polyFavorite}
                           </span>
-                        )}
+                        </div>
 
-                        {hasEdge ? (
-                          <Link 
-                            href={`/match/${m.matchedMatchId}`}
-                            className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 ${
-                              isHighEdge 
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:scale-105 active:scale-95 font-black' 
-                                : 'bg-[#00E676] text-[#0B101A] shadow-[0_0_10px_rgba(0,230,118,0.2)] hover:scale-105 active:scale-95'
-                            }`}
-                          >
-                            <span>
-                              {m.edge > 0 
-                                ? `🔥 VALUE BET +${m.edge}%` 
-                                : m.edge < 0 
-                                  ? `⚖️ VALUE BET OPPOSÉ +${Math.abs(m.edge)}%`
-                                  : '⚖️ ÉQUILIBRE STATS'
-                              }
-                            </span>
-                          </Link>
-                        ) : (
-                          <a 
-                            href={`https://polymarket.com/event/${m.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-[#1A2233] text-purple-400 border border-purple-500/20 hover:border-purple-500/5 hover:bg-purple-500/5 px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all shrink-0"
-                          >
-                            Parier sur Polymarket ↗
-                          </a>
-                        )}
+                        <a 
+                          href={`https://polymarket.com/event/${m.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_10px_rgba(147,51,234,0.3)] hover:shadow-[0_0_15px_rgba(147,51,234,0.5)] px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 flex items-center gap-1"
+                        >
+                          <span>Parier sur le favori ↗</span>
+                        </a>
                       </div>
                     </div>
                   );
